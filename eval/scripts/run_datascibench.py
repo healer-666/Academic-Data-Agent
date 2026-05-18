@@ -4,6 +4,7 @@ import argparse
 import contextlib
 import csv
 import json
+import multiprocessing as mp
 import random
 import re
 import sys
@@ -12,6 +13,8 @@ import traceback
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
+from queue import Empty
+from types import SimpleNamespace
 from time import perf_counter
 from typing import Any, Callable, Iterable
 from urllib.error import HTTPError, URLError
@@ -62,6 +65,7 @@ class DataSciBenchRunConfig:
     symbolic_profile: str = "full"
     vision_review_mode: str = "off"
     task_retries: int = 0
+    task_timeout_seconds: int = 0
 
 
 def _resolve_path(path: str | Path, *, root: Path = PROJECT_ROOT) -> Path:
@@ -123,6 +127,12 @@ def _data_source_code(value: str) -> str:
 def ensure_datascibench_prompts(data_root: Path, *, allow_download: bool = True) -> Path:
     index_path = data_root / "task_index.json"
     if index_path.exists():
+        return index_path
+    local_prompt_paths = sorted((path.relative_to(data_root)).as_posix() for path in (data_root / "data").glob("*/prompt.json"))
+    if local_prompt_paths:
+        tasks = [{"task_id": Path(path).parent.name, "prompt_path": path} for path in local_prompt_paths]
+        index_path.parent.mkdir(parents=True, exist_ok=True)
+        index_path.write_text(json.dumps({"source": "local", "tasks": tasks}, ensure_ascii=False, indent=2), encoding="utf-8")
         return index_path
     if not allow_download:
         raise FileNotFoundError(f"Missing DataSciBench task index: {index_path.as_posix()}")
@@ -202,27 +212,74 @@ def select_datascibench_tasks(
 
 
 def build_datascibench_query(task: DataSciBenchTask) -> str:
+    task_dir = task.prompt_path.parent
+    available_files = [
+        path.relative_to(task_dir).as_posix()
+        for path in sorted(task_dir.rglob("*"))
+        if path.is_file()
+        and path.name != "prompt.json"
+        and "gt" not in path.relative_to(task_dir).parts
+        and not path.name.endswith(("_outputs.jsonl", "_tmc_results.jsonl"))
+    ]
+    file_note = "\n".join(f"- {item}" for item in available_files[:80]) if available_files else "- No extra task files were found; use the prompt only."
+    bcb_note = ""
+    if task.task_group == "bcb":
+        bcb_note = (
+            "- This is a BigCodeBench-style task. Implement the requested function exactly as `def task_func(...):`.\n"
+            "- The final report must include one fenced Python code block containing the complete self-contained implementation, "
+            "including imports and the full `task_func` body. Do not only describe the implementation.\n"
+        )
     return (
         "Complete this DataSciBench task using Python where appropriate.\n\n"
         "Important benchmark constraints:\n"
         "- The task prompt is authoritative; follow requested file names and outputs when possible.\n"
-        "- If the prompt embeds all needed data, use only that embedded data.\n"
+        "- Use files in the task data directory when they are listed below.\n"
+        "- If no task files are listed and the prompt embeds all needed data, use only that embedded data.\n"
         "- Keep the final report concise and include paths of any generated artifacts.\n\n"
+        f"{bcb_note}"
         f"Task id: {task.task_id}\n"
         f"Data source type: {task.data_source_type}\n\n"
+        f"Task data directory: {task_dir.as_posix()}\n"
+        f"Available task files:\n{file_note}\n\n"
         f"Prompt:\n{task.prompt}\n\n"
         "<datascibench_result>\nSummarize completed artifacts and any unsupported requirements here.\n</datascibench_result>"
     )
 
 
-def create_placeholder_dataset(task: DataSciBenchTask, input_root: Path) -> Path:
+def create_task_input_manifest(task: DataSciBenchTask, input_root: Path) -> Path:
     input_root.mkdir(parents=True, exist_ok=True)
     target = input_root / f"{task.task_id}.csv"
+    task_dir = task.prompt_path.parent
+    files = [
+        path
+        for path in sorted(task_dir.rglob("*"))
+        if path.is_file()
+        and path.name != "prompt.json"
+        and "gt" not in path.relative_to(task_dir).parts
+        and not path.name.endswith(("_outputs.jsonl", "_tmc_results.jsonl"))
+    ]
     with target.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["task_id", "data_source_type", "prompt_preview"])
-        writer.writerow([task.task_id, task.data_source_type, task.prompt[:500]])
+        writer.writerow(["task_id", "data_source_type", "task_dir", "file_path", "relative_path", "prompt_preview"])
+        if files:
+            for path in files:
+                writer.writerow(
+                    [
+                        task.task_id,
+                        task.data_source_type,
+                        task_dir.as_posix(),
+                        path.as_posix(),
+                        path.relative_to(task_dir).as_posix(),
+                        task.prompt[:500],
+                    ]
+                )
+        else:
+            writer.writerow([task.task_id, task.data_source_type, task_dir.as_posix(), "", "", task.prompt[:500]])
     return target
+
+
+def create_placeholder_dataset(task: DataSciBenchTask, input_root: Path) -> Path:
+    return create_task_input_manifest(task, input_root)
 
 
 def _append_progress(path: Path, message: str) -> None:
@@ -376,6 +433,60 @@ def _run_single_task(*, runner: Callable[..., Any], task: DataSciBenchTask, conf
     )
 
 
+def _task_result_to_payload(result: Any) -> dict[str, Any]:
+    trace_path = getattr(result, "trace_path", "")
+    run_dir = getattr(result, "run_dir", "")
+    return {
+        "report_markdown": str(getattr(result, "report_markdown", "") or ""),
+        "trace_path": trace_path.as_posix() if hasattr(trace_path, "as_posix") else str(trace_path or ""),
+        "run_dir": run_dir.as_posix() if hasattr(run_dir, "as_posix") else str(run_dir or ""),
+        "workflow_complete": bool(getattr(result, "workflow_complete", False)),
+        "execution_audit_passed": bool(getattr(result, "execution_audit_passed", False)),
+    }
+
+
+def _run_single_task_child(queue: mp.Queue, runner: Callable[..., Any], task: DataSciBenchTask, config: DataSciBenchRunConfig, data_path: Path) -> None:
+    try:
+        result = _run_single_task(runner=runner, task=task, config=config, data_path=data_path)
+        queue.put({"ok": True, "payload": _task_result_to_payload(result)})
+    except BaseException as exc:
+        queue.put({"ok": False, "error": str(exc), "traceback": traceback.format_exc()})
+
+
+def _run_single_task_with_timeout(
+    *,
+    runner: Callable[..., Any],
+    task: DataSciBenchTask,
+    config: DataSciBenchRunConfig,
+    data_path: Path,
+) -> Any:
+    if config.task_timeout_seconds <= 0:
+        return _run_single_task(runner=runner, task=task, config=config, data_path=data_path)
+
+    ctx = mp.get_context("spawn")
+    queue: mp.Queue = ctx.Queue(maxsize=1)
+    process = ctx.Process(target=_run_single_task_child, args=(queue, runner, task, config, data_path))
+    process.start()
+    try:
+        message = queue.get(timeout=config.task_timeout_seconds)
+    except Empty:
+        process.terminate()
+        process.join(30)
+        if process.is_alive():
+            process.kill()
+            process.join(10)
+        raise TimeoutError(f"Task {task.task_id} exceeded timeout of {config.task_timeout_seconds} seconds")
+    process.join(30)
+    if process.is_alive():
+        process.terminate()
+        process.join(10)
+    if not message.get("ok"):
+        error = str(message.get("error") or "unknown child process error")
+        child_traceback = str(message.get("traceback") or "")
+        raise RuntimeError(f"{error}\n{child_traceback}")
+    return SimpleNamespace(**dict(message.get("payload") or {}))
+
+
 def run_datascibench_sample(
     config: DataSciBenchRunConfig,
     *,
@@ -423,7 +534,7 @@ def run_datascibench_sample(
         start_message = f"[{index}/{len(selected_tasks)}] DataSciBench task {task.task_id} | source={task.data_source_type}"
         print(start_message, flush=True)
         _append_progress(progress_log_path, start_message)
-        input_path = create_placeholder_dataset(task, config.data_root / "synthetic_inputs")
+        input_path = create_task_input_manifest(task, config.data_root / "run_inputs")
         record: dict[str, Any] = {
             "id": task.task_id,
             "task_group": task.task_group,
@@ -443,7 +554,7 @@ def run_datascibench_sample(
             for attempt in range(1, max(0, config.task_retries) + 2):
                 record["attempt_count"] = attempt
                 try:
-                    result = _run_single_task(runner=runner, task=task, config=config, data_path=input_path)
+                    result = _run_single_task_with_timeout(runner=runner, task=task, config=config, data_path=input_path)
                     last_exc = None
                     break
                 except Exception as exc:
@@ -516,6 +627,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--latency-mode", choices=("auto", "quality", "fast"), default="quality")
     parser.add_argument("--symbolic-profile", choices=("full", "prompt_only", "none"), default="full")
     parser.add_argument("--vision-review-mode", choices=("off", "auto", "on"), default="off")
+    parser.add_argument("--task-timeout-seconds", type=int, default=0)
     return parser
 
 
@@ -538,6 +650,7 @@ def main() -> int:
         symbolic_profile=args.symbolic_profile,
         vision_review_mode=args.vision_review_mode,
         task_retries=max(0, args.task_retries),
+        task_timeout_seconds=max(0, args.task_timeout_seconds),
     )
     result = run_datascibench_sample(config)
     print(f"DataSciBench report directory: {result['report_dir']}")

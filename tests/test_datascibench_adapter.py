@@ -16,6 +16,16 @@ if str(SCRIPTS_PATH) not in sys.path:
 import run_datascibench  # noqa: E402
 
 
+def fake_large_report_runner(data_path, **kwargs):
+    return SimpleNamespace(
+        report_markdown="# Report\n\n<datascibench_result>\n" + ("created result.csv\n" * 50000) + "</datascibench_result>\n",
+        workflow_complete=True,
+        execution_audit_passed=True,
+        trace_path=Path(data_path).parent / "trace.json",
+        run_dir=Path(data_path).parent / "run",
+    )
+
+
 class DataSciBenchAdapterTests(unittest.TestCase):
     def _case_dir(self) -> Path:
         base_dir = PROJECT_ROOT / "tool-output" / "test-temp"
@@ -26,6 +36,7 @@ class DataSciBenchAdapterTests(unittest.TestCase):
 
     def _write_fake_datascibench(self, root: Path) -> None:
         tasks = [
+            ("bcb1", "1_bcb", "Write a function. You should write self-contained code starting with def task_func(x):"),
             ("csv_excel_1", "1 = embedded data", "Summarize the embedded table and save result.csv."),
             ("csv_excel_2", "1", "Compute the mean from the values in the prompt."),
             ("deep_learning_1", "2", "Train a neural network with external images."),
@@ -65,11 +76,23 @@ class DataSciBenchAdapterTests(unittest.TestCase):
         )
         query = run_datascibench.build_datascibench_query(selected[0])
 
-        self.assertEqual(len(tasks), 3)
+        self.assertEqual(len(tasks), 4)
         self.assertEqual([task.task_id for task in selected], ["csv_excel_1", "csv_excel_2"])
         self.assertIn("DataSciBench task", query)
         self.assertIn("<datascibench_result>", query)
         self.assertNotIn("Harness task-specific guardrails", query)
+
+    def test_bcb_query_requires_final_task_func_code_block(self):
+        root = self._case_dir() / "datascibench"
+        self._write_fake_datascibench(root)
+
+        tasks = run_datascibench.load_datascibench_tasks(root, allow_download=False)
+        bcb_task = next(task for task in tasks if task.task_id == "bcb1")
+        query = run_datascibench.build_datascibench_query(bcb_task)
+
+        self.assertIn("BigCodeBench-style task", query)
+        self.assertIn("def task_func", query)
+        self.assertIn("complete self-contained implementation", query)
 
     def test_select_all_filters(self):
         root = self._case_dir() / "datascibench"
@@ -84,7 +107,7 @@ class DataSciBenchAdapterTests(unittest.TestCase):
             task_group="all",
         )
 
-        self.assertEqual([task.task_id for task in selected], ["csv_excel_1", "csv_excel_2", "deep_learning_1"])
+        self.assertEqual([task.task_id for task in selected], ["bcb1", "csv_excel_1", "csv_excel_2", "deep_learning_1"])
 
     def test_extract_datascibench_result_block(self):
         compliant, text, source = run_datascibench.extract_datascibench_result_block(
@@ -150,6 +173,28 @@ class DataSciBenchAdapterTests(unittest.TestCase):
         for record in summary["results"]:
             self.assertTrue(record["format_compliant"])
             self.assertTrue(Path(record["raw_report_path"]).exists())
+
+    def test_run_datascibench_sample_timeout_wrapper_handles_large_result(self):
+        case_dir = self._case_dir()
+        root = case_dir / "datascibench"
+        self._write_fake_datascibench(root)
+
+        config = run_datascibench.DataSciBenchRunConfig(
+            data_root=root,
+            reports_dir=case_dir / "reports",
+            output_root=case_dir / "outputs",
+            sample_size=1,
+            seed=20260511,
+            allow_download=False,
+            data_source_type="1",
+            task_group="csv_excel",
+            task_timeout_seconds=30,
+        )
+
+        result = run_datascibench.run_datascibench_sample(config, runner=fake_large_report_runner)
+
+        self.assertEqual(result["summary"]["status_distribution"].get("completed"), 1)
+        self.assertEqual(result["summary"]["run_error_count"], 0)
 
 
 if __name__ == "__main__":

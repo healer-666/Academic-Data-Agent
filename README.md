@@ -6,7 +6,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
 
-[特点](#-核心特点) · [图览](#-架构图览) · [架构](#-系统架构) · [快速开始](#-快速开始) · [使用指南](#-使用指南) · [项目结构](#-项目结构)
+[特点](#-核心特点) · [图览](#-架构图览) · [架构](#-系统架构) · [评测](#公开评测结果) · [快速开始](#-快速开始) · [使用指南](#-使用指南) · [项目结构](#-项目结构)
 </div>
 
 ## 项目简介
@@ -36,6 +36,45 @@
 - Gradio 工作台、历史回放与工件下载
 - eval harness：固定 10 个自造表格任务，当前 `seed_v5` 稳定基线为 `10/10 accepted`
 - symbolic ablation：支持 `full`、`prompt_only`、`none` 三组 profile，对比符号化规则和验证反馈对流程合规性、报告完整性和可复现性的影响
+
+## 公开评测结果
+
+> 说明：DABench 与 DataSciBench 均为 **local reproduction, not leaderboard**。也就是使用公开数据和官方或官方风格 scorer 在本地复现实验得到的结果，不是官方 leaderboard 提交结果，不宣称官方排名或 SOTA。
+
+| Benchmark | 任务数 | 指标 | 当前结果 | 说明 |
+| --- | ---: | --- | ---: | --- |
+| 自建回归评测 `seed_v5` | 10 | accepted | 10/10 | 用于日常回归稳定性检查，外部说服力有限 |
+| DABench closed-form dev | 257 | official-style Accuracy by Question | 85.60%-85.94% | 当前公开文件为 257 题，不是网页旧口径 311 题 |
+| DABench closed-form dev | 257 | local compatible exact match | 87.16% | 224/257，包含轻微格式归一化 |
+| DataSciBench | 222 | official CR | **66.27%** | 官方 scorer 本地复现，222/222 scored，0 unsupported，0 evaluator failed |
+
+DataSciBench 分项结果：
+
+| Task group | Count | Mean CR | CR = 1.0 | CR >= 0.5 |
+| --- | ---: | ---: | ---: | ---: |
+| bcb | 167 | 76.20% | 122 | 129 |
+| csv_excel | 20 | 41.76% | 3 | 9 |
+| dl | 10 | 31.67% | 0 | 4 |
+| human | 25 | 33.40% | 3 | 8 |
+
+DataSciBench 公开结果对比：
+
+| System / model | DataSciBench CR | 状态 |
+| --- | ---: | --- |
+| GPT-4o-2024-05-13 | 68.44% | DataSciBench 公开结果 |
+| Academic-Data-Agent | **66.27%** | local reproduction, not leaderboard |
+| DeepAnalyze-8B | 66.24% | 公开结果 |
+| Deepseek-Coder-33B-Instruct | 61.23% | DataSciBench 公开结果 |
+| GPT-4-Turbo | 58.87% | DataSciBench 公开结果 |
+| Claude-3.5-Sonnet | 58.11% | DataSciBench 公开结果 |
+
+当前结论：项目已经具备比自建测试更强的公开 benchmark 证据。DataSciBench 总分主要由 BCB 代码类任务拉动，`csv_excel`、`dl`、`human` 仍是后续主要优化方向。
+
+详细报告：
+
+- [DABench public benchmark report](./docs/dabench_public_benchmark_report.md)
+- [DataSciBench formal comparison](./docs/datascibench_formal_comparison_local_reproduction.md)
+- [DataSciBench scorer readiness notes](./docs/datascibench_official_eval_readiness.md)
 
 ## 架构图览
 
@@ -297,6 +336,9 @@ print(result.failure_memory_writeback_status)
 - [项目主链路拆解](./docs/项目主链路拆解.md)
 - [令牌、上下文与审稿说明](./docs/令牌、上下文与审稿说明.md)
 - [Harness seed_v4 / seed_v5 迭代总结](./docs/harness_seed_v4_iteration_summary.md)
+- [DABench public benchmark report](./docs/dabench_public_benchmark_report.md)
+- [DataSciBench formal comparison](./docs/datascibench_formal_comparison_local_reproduction.md)
+- [DataSciBench scorer readiness notes](./docs/datascibench_official_eval_readiness.md)
 
 ---
 
