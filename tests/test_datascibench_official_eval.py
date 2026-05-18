@@ -53,6 +53,63 @@ class DataSciBenchOfficialEvalTests(unittest.TestCase):
         self.assertIn("return", code)
         self.assertNotIn("print('setup')", code)
 
+    def test_extract_task_func_code_from_later_fenced_block(self):
+        case_dir = self._case_dir()
+        trace_path = case_dir / "agent_trace.json"
+        trace_path.write_text(
+            json.dumps(
+                {
+                    "steps": [
+                        {
+                            "tool_input": (
+                                "Here is a draft:\n"
+                                "```python\nprint('not useful')\n```\n"
+                                "Final implementation:\n"
+                                "```python\n"
+                                "import pandas as pd\n"
+                                "def task_func(df):\n"
+                                "    return df.copy()\n"
+                                "```\n"
+                            )
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        code = official_eval.extract_task_func_code(trace_path)
+
+        self.assertIn("import pandas as pd", code)
+        self.assertIn("def task_func", code)
+        self.assertIn("return df.copy()", code)
+
+    def test_extract_task_func_code_from_mixed_text_snippet(self):
+        case_dir = self._case_dir()
+        trace_path = case_dir / "agent_trace.json"
+        trace_path.write_text(
+            json.dumps(
+                {
+                    "observation": (
+                        "stdout before\\n"
+                        "import numpy as np\\n"
+                        "from math import sqrt\\n"
+                        "def task_func(values):\\n"
+                        "    arr = np.array(values)\\n"
+                        "    return float(np.mean(arr))\\n"
+                        "stdout after"
+                    )
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        code = official_eval.extract_task_func_code(trace_path)
+
+        self.assertIn("import numpy as np", code)
+        self.assertIn("from math import sqrt", code)
+        self.assertIn("return float", code)
+
     def test_stage_bcb_output_writes_official_jsonl(self):
         case_dir = self._case_dir()
         official_root = case_dir / "official"

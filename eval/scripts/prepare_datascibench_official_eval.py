@@ -105,6 +105,8 @@ def _copy_tree_files(source_dir: Path, target_dir: Path) -> int:
     if not source_dir.exists():
         return copied
     for source in source_dir.rglob("*"):
+        if any(part in {".conda-datascibench-repro", ".conda", ".venv", "venv", "__pycache__"} for part in source.parts):
+            continue
         if source.is_file():
             relative = source.relative_to(source_dir)
             _copy_file(source, target_dir / relative)
@@ -137,9 +139,6 @@ def _artifact_search_roots(record: dict[str, Any]) -> list[Path]:
             path = path.parent
         if path.exists() and path not in roots:
             roots.append(path)
-    for extra in (PROJECT_ROOT, PROJECT_ROOT / "outputs"):
-        if extra.exists() and extra not in roots:
-            roots.append(extra)
     return roots
 
 
@@ -168,8 +167,9 @@ def _find_artifact(record: dict[str, Any], candidate: str) -> Path | None:
 def _copy_referenced_artifacts(record: dict[str, Any], official_root: Path, target_dir: Path) -> list[str]:
     task_id = str(record.get("id"))
     text_parts = [_metric_text(official_root, task_id)]
-    raw_report_path = Path(str(record.get("raw_report_path", "")))
-    if raw_report_path.exists():
+    raw_report_path_text = str(record.get("raw_report_path", "") or "").strip()
+    raw_report_path = Path(raw_report_path_text) if raw_report_path_text else None
+    if raw_report_path is not None and raw_report_path.exists() and raw_report_path.is_file():
         text_parts.append(raw_report_path.read_text(encoding="utf-8", errors="ignore"))
     copied: list[str] = []
     for candidate in sorted(_extract_path_candidates("\n".join(text_parts))):
@@ -228,6 +228,38 @@ def _extract_task_func_code_from_text(text: str) -> str:
     return "\n".join([*import_blocks, function_block]).strip()
 
 
+def _candidate_task_func_snippets(text: str) -> Iterable[str]:
+    normalized = str(text or "")
+    if not normalized:
+        return
+    yield normalized
+    if "\\n" in normalized:
+        normalized = normalized.replace("\\n", "\n")
+        yield normalized
+
+    for block in re.finditer(r"```(?:python|py)?\s*(.*?)```", normalized, flags=re.IGNORECASE | re.DOTALL):
+        yield block.group(1)
+
+    lines = normalized.splitlines()
+    for index, line in enumerate(lines):
+        if "def task_func" not in line:
+            continue
+        imports = [
+            candidate
+            for candidate in lines[:index]
+            if candidate.lstrip().startswith(("import ", "from "))
+        ]
+        function_lines = [line]
+        def_indent = len(line) - len(line.lstrip())
+        for following in lines[index + 1 :]:
+            stripped = following.strip()
+            indent = len(following) - len(following.lstrip())
+            if stripped and indent <= def_indent:
+                break
+            function_lines.append(following)
+        yield "\n".join([*imports, *function_lines])
+
+
 def extract_task_func_code(trace_path: Path, raw_report_path: Path | None = None) -> str:
     texts: list[str] = []
     if str(trace_path) not in {"", "."} and trace_path.exists() and trace_path.is_file():
@@ -239,13 +271,8 @@ def extract_task_func_code(trace_path: Path, raw_report_path: Path | None = None
     if raw_report_path and raw_report_path.exists() and raw_report_path.is_file():
         texts.append(raw_report_path.read_text(encoding="utf-8", errors="ignore"))
     for text in texts:
-        code = _extract_task_func_code_from_text(text)
-        if code:
-            return code
-    for text in texts:
-        match = re.search(r"```(?:python)?\s*(.*?)```", text, flags=re.IGNORECASE | re.DOTALL)
-        if match:
-            code = _extract_task_func_code_from_text(match.group(1))
+        for candidate in _candidate_task_func_snippets(text):
+            code = _extract_task_func_code_from_text(candidate)
             if code:
                 return code
     return ""
@@ -296,13 +323,19 @@ def stage_regular_output(record: dict[str, Any], config: OfficialEvalConfig) -> 
     if run_dir.exists():
         shutil.rmtree(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
-    source_run_dir = Path(str(record.get("run_dir", "")))
-    copied_count = _copy_tree_files(source_run_dir, run_dir)
-    raw_report_path = Path(str(record.get("raw_report_path", "")))
-    if raw_report_path.exists():
+    copied_count = 0
+    source_run_dir_text = str(record.get("run_dir", "") or "").strip()
+    if record.get("status") == "completed" and source_run_dir_text:
+        source_run_dir = Path(source_run_dir_text)
+        if source_run_dir.exists() and source_run_dir.is_dir():
+            copied_count = _copy_tree_files(source_run_dir, run_dir)
+    raw_report_path_text = str(record.get("raw_report_path", "") or "").strip()
+    raw_report_path = Path(raw_report_path_text) if raw_report_path_text else None
+    if raw_report_path is not None and raw_report_path.exists() and raw_report_path.is_file():
         _copy_file(raw_report_path, run_dir / "final_report.md")
-    trace_path = Path(str(record.get("trace_path", "")))
-    if trace_path.exists():
+    trace_path_text = str(record.get("trace_path", "") or "").strip()
+    trace_path = Path(trace_path_text) if trace_path_text else None
+    if trace_path is not None and trace_path.exists() and trace_path.is_file():
         _copy_file(trace_path, run_dir / "agent_trace.json")
     referenced = _copy_referenced_artifacts(record, config.official_root, run_dir)
     (run_dir / "logs.txt").write_text(
@@ -395,7 +428,20 @@ def sync_ground_truth(config: OfficialEvalConfig, task_ids: Iterable[str]) -> di
 
 
 def _run_command(command: list[str], *, cwd: Path, timeout_seconds: int) -> subprocess.CompletedProcess[str]:
+    metagpt_home = cwd / ".metagpt_eval_home"
+    metagpt_config = metagpt_home / ".metagpt" / "config2.yaml"
+    metagpt_config.parent.mkdir(parents=True, exist_ok=True)
+    if not metagpt_config.exists():
+        metagpt_config.write_text(
+            "llm:\n"
+            "  api_type: openai\n"
+            "  api_key: sk-dummy-for-official-evaluator-import\n"
+            "  model: gpt-4o-mini\n",
+            encoding="utf-8",
+        )
     env = {**os.environ, "MPLBACKEND": "Agg", "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+    env["HOME"] = metagpt_home.as_posix()
+    env["USERPROFILE"] = str(metagpt_home)
     try:
         return subprocess.run(
             command,
@@ -456,6 +502,9 @@ def run_official_evaluator(config: OfficialEvalConfig, prepared: dict[str, Any],
     if prepared["official_prepare_status"] != "prepared":
         return {"official_score_status": prepared["official_prepare_status"]}
     if prepared["official_eval_kind"] == "bcb_tmc":
+        stale_result = config.official_root / "data" / task_id / f"{config.model_id}_tmc_results.jsonl"
+        if stale_result.exists():
+            stale_result.unlink()
         command = [
             config.python_executable,
             "-m",
@@ -469,6 +518,9 @@ def run_official_evaluator(config: OfficialEvalConfig, prepared: dict[str, Any],
         prefix = "evaluate_tmc"
         parsed = _parse_bcb_result(config, task_id) if result.returncode == 0 else {"official_score_status": "evaluator_failed"}
     else:
+        stale_result = config.official_root / "evaluation_results" / f"{_safe_model_name(config.model_id)}_results.csv"
+        if stale_result.exists():
+            stale_result.unlink()
         command = [
             config.python_executable,
             "-m",
