@@ -6,6 +6,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import traceback
 import warnings
 from pathlib import Path
@@ -26,6 +27,23 @@ from ..plotting import (
     save_figure,
 )
 from ..tool_protocol import ToolErrorCode, ToolResponse
+
+
+_PIP_INSTALL_PATTERNS = (
+    re.compile(r"(?i)\bpip\s+install\b"),
+    re.compile(r"(?i)\bpython(?:\.\w+)?\s+-m\s+pip\s+install\b"),
+    re.compile(r"(?i)\bconda\s+install\b"),
+    re.compile(r"(?i)\bmamba\s+install\b"),
+    re.compile(r"(?i)\buv\s+pip\s+install\b"),
+    re.compile(r"(?i)\bsubprocess\.[a-z_]+\s*\([^)]*(?:pip|conda|mamba)[^)]*install"),
+    re.compile(r"(?i)\bos\.system\s*\([^)]*(?:pip|conda|mamba)[^)]*install"),
+)
+
+
+def _pip_install_blocked(code: str) -> bool:
+    if os.environ.get("ADA_BENCHMARK_BLOCK_PIP_INSTALL", "").strip().lower() not in {"1", "true", "yes"}:
+        return False
+    return any(pattern.search(code) for pattern in _PIP_INSTALL_PATTERNS)
 
 
 class PythonInterpreterTool(Tool):
@@ -76,6 +94,15 @@ class PythonInterpreterTool(Tool):
             return ToolResponse.error(
                 code=ToolErrorCode.INVALID_PARAM,
                 message="PythonInterpreterTool expected a non-empty 'code' string.",
+            )
+        if _pip_install_blocked(code):
+            return ToolResponse.error(
+                code=ToolErrorCode.EXECUTION_ERROR,
+                message=(
+                    "Python execution blocked because this benchmark run forbids task-level package installation. "
+                    "Use only the packages already installed in the clean evaluation environment."
+                ),
+                context={"code": code, "blocked_reason": "pip_install_forbidden"},
             )
 
         namespace = self._build_namespace()

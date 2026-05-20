@@ -4,6 +4,7 @@ __pycache__/
 .env.*
 
 .pytest_cache/
+.conda*/
 
 tool-output/test-temp/
 tool-output/tmp*/
@@ -14,6 +15,8 @@ memory/knowledge_base/
 tool-output/
 logs/
 Co-creation-projects/
+frontend/node_modules/
+frontend/dist/
 
 .claude/
 data/external/dabench/

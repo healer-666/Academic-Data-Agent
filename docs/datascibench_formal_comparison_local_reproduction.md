@@ -4,6 +4,8 @@
 
 This report uses a clean local DataSciBench run produced on 2026-05-17/18. It should not be described as an official leaderboard submission because the run uses the local Academic-Data-Agent harness, local environment fixes, and retry repair for transient HTTPS EOF failures.
 
+Update on 2026-05-20: a separate clean 60-task `full / prompt_only / none` ablation was completed in `.conda-datascibench-repro` with task-level package installation blocked. That ablation is not a replacement for the 222-task headline run; it is the mechanism-comparison experiment used to support claims about metric-aware contracts and symbolic profiles. See `docs/datascibench_clean_ablation_20260520.md`.
+
 ## Run Summary
 
 | Item | Value |
@@ -68,3 +70,22 @@ The agent run itself used a clean conda environment before scorer-specific MetaG
 ## Bottom Line
 
 The result is competitive with published DataSciBench baselines, roughly between GPT-4o and DeepAnalyze-8B on overall CR, but it is not a leaderboard claim. The score is carried by strong BCB performance; improving `csv_excel`, `human`, and `dl` execution should be the next optimization target.
+
+## Clean 60-Task Ablation Addendum
+
+The clean ablation uses a fixed 60-task subset (`csv_excel=20`, `human=25`, `bcb=10`, `dl=5`) and compares three symbolic profiles under the same clean environment.
+
+| Profile | Mean CR | 95% CI | Official scored | Contract pass | Run errors |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `full` | **53.12%** | 43.32%-63.13% | 60/60 | 97.73% | 1 |
+| `prompt_only` | 50.81% | 40.89%-60.57% | 60/60 | 97.73% | 1 |
+| `none` | 50.17% | 40.87%-59.95% | 59/60 | 100.00% | 1 |
+
+Paired deltas:
+
+| Comparison | Paired tasks | Mean delta CR | Bootstrap 95% CI |
+| --- | ---: | ---: | ---: |
+| `full - prompt_only` | 60 | +2.32 pts | -3.60 to +7.98 pts |
+| `full - none` | 59 | +2.16 pts | -1.11 to +5.37 pts |
+
+Interpretation: `full` is the best profile in the clean run, but the confidence intervals cross zero. This should be described as a positive trend, not a statistically significant improvement. Failure analysis shows that the dominant remaining failure type is `calculation_error`, not artifact missing or format failure.

@@ -182,6 +182,28 @@ def _copy_referenced_artifacts(record: dict[str, Any], official_root: Path, targ
     return copied
 
 
+def _copy_contract_artifacts(record: dict[str, Any], target_dir: Path) -> list[str]:
+    copied: list[str] = []
+    seen: set[str] = set()
+    for item in record.get("found_artifacts", []) or []:
+        if not isinstance(item, dict):
+            continue
+        path_text = str(item.get("path", "") or "").strip()
+        if not path_text:
+            continue
+        source = Path(path_text)
+        if not source.exists() or not source.is_file():
+            continue
+        target_name = str(item.get("name") or source.name)
+        if target_name in seen:
+            continue
+        target = target_dir / Path(target_name).name
+        _copy_file(source, target)
+        copied.append(target.as_posix())
+        seen.add(target_name)
+    return copied
+
+
 def _iter_strings(value: Any) -> Iterable[str]:
     if isinstance(value, str):
         yield value
@@ -337,6 +359,7 @@ def stage_regular_output(record: dict[str, Any], config: OfficialEvalConfig) -> 
     trace_path = Path(trace_path_text) if trace_path_text else None
     if trace_path is not None and trace_path.exists() and trace_path.is_file():
         _copy_file(trace_path, run_dir / "agent_trace.json")
+    contract_artifacts = _copy_contract_artifacts(record, run_dir)
     referenced = _copy_referenced_artifacts(record, config.official_root, run_dir)
     (run_dir / "logs.txt").write_text(
         f"Academic-Data-Agent completed task {task_id}; source run: {record.get('run_dir', '')}\n",
@@ -351,6 +374,7 @@ def stage_regular_output(record: dict[str, Any], config: OfficialEvalConfig) -> 
         "official_input_path": run_dir.as_posix(),
         "official_prepare_status": status,
         "copied_file_count": copied_count,
+        "copied_contract_artifacts": contract_artifacts,
         "copied_referenced_artifacts": referenced,
         "gt_dir": gt_dir.as_posix(),
     }

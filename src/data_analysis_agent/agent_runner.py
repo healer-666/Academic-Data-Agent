@@ -30,6 +30,7 @@ from .events import EventHandler, EventRecorder, emit_event
 from .execution_audit import audit_stage_execution
 from .harness.summary import build_run_summary_payload
 from .knowledge_context import KnowledgeContextProvider
+from .lineage import LineageArtifact, write_lineage_artifacts
 from .llm import build_llm
 from .memory import (
     FailureMemoryService,
@@ -905,6 +906,7 @@ def _save_agent_trace(
     execution_audit: StageExecutionAuditResult | None = None,
     report_contract_check: ReportContractCheckResult | None = None,
     symbolic_profile: str = "full",
+    lineage_payload: dict[str, object] | None = None,
 ) -> Path:
     active_run_context = run_context or RunContext(
         run_id=run_dir.name,
@@ -956,6 +958,7 @@ def _save_agent_trace(
         report_contract_check=report_contract_check,
         symbolic_profile=symbolic_profile,
         symbolic_rules=get_symbolic_rules(),
+        lineage_payload=lineage_payload,
     )
 
 
@@ -1182,6 +1185,7 @@ def run_analysis(
     task_type: str = "",
     task_expectations: Iterable[str] = (),
     symbolic_profile: str = "full",
+    lineage_contract: dict[str, Any] | None = None,
 ) -> AnalysisRunResult:
     """Run the full data analysis workflow."""
 
@@ -2613,6 +2617,20 @@ def run_analysis(
             reason="Failure memory writeback not triggered for this run.",
         )
 
+    lineage_artifact: LineageArtifact | None = None
+    lineage_payload: dict[str, object] = {"status": "not_generated"}
+    try:
+        lineage_artifact = write_lineage_artifacts(
+            run_context=run_context,
+            step_traces=step_traces_tuple,
+            telemetry=telemetry,
+            artifact_validation=artifact_validation,
+            lineage_contract=lineage_contract,
+        )
+        lineage_payload = lineage_artifact.to_trace_dict()
+    except Exception as exc:
+        lineage_payload = {"status": "failed", "error": str(exc)}
+
     final_trace_persist_started_at = time.perf_counter()
     _save_agent_trace(
         trace_path=trace_path,
@@ -2650,6 +2668,7 @@ def run_analysis(
         execution_audit=current_execution_audit,
         report_contract_check=current_report_contract,
         symbolic_profile=resolved_symbolic_profile,
+        lineage_payload=lineage_payload,
     )
     _accumulate_duration(
         timing_breakdown,
@@ -2757,6 +2776,8 @@ def run_analysis(
         report_contract_passed=current_report_contract.passed,
         report_contract_blocking_issues=current_report_contract.blocking_issues,
         report_contract_issue_types=current_report_contract.issue_types,
+        lineage_json_path=lineage_artifact.json_path if lineage_artifact else None,
+        lineage_mermaid_path=lineage_artifact.mermaid_path if lineage_artifact else None,
     )
     _save_run_summary_service(
         summary_path=run_dir / "run_summary.json",

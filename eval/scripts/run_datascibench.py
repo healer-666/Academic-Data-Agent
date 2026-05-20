@@ -5,6 +5,7 @@ import contextlib
 import csv
 import json
 import multiprocessing as mp
+import os
 import random
 import re
 import sys
@@ -20,6 +21,12 @@ from typing import Any, Callable, Iterable
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
+
+from datascibench_contracts import (
+    DataSciBenchArtifactContract,
+    load_artifact_contract,
+    validate_artifact_contract,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -66,6 +73,8 @@ class DataSciBenchRunConfig:
     vision_review_mode: str = "off"
     task_retries: int = 0
     task_timeout_seconds: int = 0
+    contract_mode: str = "auto"
+    block_pip_install: bool = False
 
 
 def _resolve_path(path: str | Path, *, root: Path = PROJECT_ROOT) -> Path:
@@ -211,7 +220,7 @@ def select_datascibench_tasks(
     return tuple(sorted(shuffled[:sample_size], key=lambda task: task.task_id))
 
 
-def build_datascibench_query(task: DataSciBenchTask) -> str:
+def build_datascibench_query(task: DataSciBenchTask, contract: DataSciBenchArtifactContract | None = None) -> str:
     task_dir = task.prompt_path.parent
     available_files = [
         path.relative_to(task_dir).as_posix()
@@ -229,6 +238,7 @@ def build_datascibench_query(task: DataSciBenchTask) -> str:
             "- The final report must include one fenced Python code block containing the complete self-contained implementation, "
             "including imports and the full `task_func` body. Do not only describe the implementation.\n"
         )
+    contract_note = contract.to_prompt_block() if contract is not None and contract.available else ""
     return (
         "Complete this DataSciBench task using Python where appropriate.\n\n"
         "Important benchmark constraints:\n"
@@ -237,6 +247,7 @@ def build_datascibench_query(task: DataSciBenchTask) -> str:
         "- If no task files are listed and the prompt embeds all needed data, use only that embedded data.\n"
         "- Keep the final report concise and include paths of any generated artifacts.\n\n"
         f"{bcb_note}"
+        f"{contract_note}"
         f"Task id: {task.task_id}\n"
         f"Data source type: {task.data_source_type}\n\n"
         f"Task data directory: {task_dir.as_posix()}\n"
@@ -329,6 +340,10 @@ def build_summary(*, records: list[dict[str, Any]], config: DataSciBenchRunConfi
         ) + 1
     durations = [float(record.get("duration_seconds", 0.0) or 0.0) for record in records]
     denominator = len(records) or 1
+    artifact_contract_records = [
+        record for record in records if int(record.get("required_artifact_count", 0) or 0) > 0
+    ]
+    artifact_contract_denominator = len(artifact_contract_records) or 1
     return {
         "benchmark": "DataSciBench",
         "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -341,6 +356,17 @@ def build_summary(*, records: list[dict[str, Any]], config: DataSciBenchRunConfi
         "unsupported_count": sum(1 for record in records if str(record.get("official_scoring_status", "")).startswith("unsupported")),
         "run_error_count": sum(1 for record in records if record.get("status") == "failed"),
         "format_failure_count": sum(1 for record in records if record.get("status") == "completed" and not record.get("format_compliant")),
+        "artifact_contract_applicable_count": len(artifact_contract_records),
+        "artifact_contract_pass_count": sum(1 for record in artifact_contract_records if record.get("artifact_contract_passed")),
+        "artifact_contract_pass_rate": round(
+            sum(1 for record in artifact_contract_records if record.get("artifact_contract_passed")) / artifact_contract_denominator,
+            4,
+        )
+        if artifact_contract_records
+        else 0.0,
+        "missing_required_artifact_count": sum(
+            len(record.get("missing_required_artifacts", []) or []) for record in records
+        ),
         "avg_duration_seconds": round(sum(durations) / denominator, 3),
         "status_distribution": status_counts,
         "official_scoring_distribution": scoring_counts,
@@ -397,6 +423,8 @@ def render_summary_markdown(summary: dict[str, Any]) -> str:
         f"- unsupported_count: `{summary.get('unsupported_count')}`",
         f"- run_error_count: `{summary.get('run_error_count')}`",
         f"- format_failure_count: `{summary.get('format_failure_count')}`",
+        f"- artifact_contract_applicable_count: `{summary.get('artifact_contract_applicable_count')}`",
+        f"- artifact_contract_pass_rate: `{summary.get('artifact_contract_pass_rate')}`",
         f"- avg_duration_seconds: `{summary.get('avg_duration_seconds')}`",
         "",
         "## Interpretation",
@@ -415,22 +443,47 @@ def _write_jsonl(path: Path, records: Iterable[dict[str, Any]]) -> None:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
-def _run_single_task(*, runner: Callable[..., Any], task: DataSciBenchTask, config: DataSciBenchRunConfig, data_path: Path) -> Any:
-    return runner(
-        data_path,
-        query=build_datascibench_query(task),
-        output_dir=config.output_root,
-        env_file=config.env_file,
-        max_steps=config.max_steps,
-        quality_mode=config.quality_mode,
-        latency_mode=config.latency_mode,
-        vision_review_mode=config.vision_review_mode,
-        use_rag=False,
-        use_memory=False,
-        task_type="datascibench",
-        task_expectations=(),
-        symbolic_profile=config.symbolic_profile,
-    )
+def _run_single_task(
+    *,
+    runner: Callable[..., Any],
+    task: DataSciBenchTask,
+    config: DataSciBenchRunConfig,
+    data_path: Path,
+    contract: DataSciBenchArtifactContract | None = None,
+) -> Any:
+    lineage_contract = contract.to_dict() if contract is not None and contract.available else None
+    previous_block = os.environ.get("ADA_BENCHMARK_BLOCK_PIP_INSTALL")
+    if config.block_pip_install:
+        os.environ["ADA_BENCHMARK_BLOCK_PIP_INSTALL"] = "1"
+    try:
+        return runner(
+            data_path,
+            query=build_datascibench_query(task, contract=contract),
+            output_dir=config.output_root,
+            env_file=config.env_file,
+            max_steps=config.max_steps,
+            quality_mode=config.quality_mode,
+            latency_mode=config.latency_mode,
+            vision_review_mode=config.vision_review_mode,
+            use_rag=False,
+            use_memory=False,
+            task_type="datascibench",
+            task_expectations=(),
+            symbolic_profile=config.symbolic_profile,
+            lineage_contract=lineage_contract,
+        )
+    finally:
+        if config.block_pip_install:
+            if previous_block is None:
+                os.environ.pop("ADA_BENCHMARK_BLOCK_PIP_INSTALL", None)
+            else:
+                os.environ["ADA_BENCHMARK_BLOCK_PIP_INSTALL"] = previous_block
+
+
+def _pathish_to_string(value: Any) -> str:
+    if value is None:
+        return ""
+    return value.as_posix() if hasattr(value, "as_posix") else str(value or "")
 
 
 def _task_result_to_payload(result: Any) -> dict[str, Any]:
@@ -438,16 +491,25 @@ def _task_result_to_payload(result: Any) -> dict[str, Any]:
     run_dir = getattr(result, "run_dir", "")
     return {
         "report_markdown": str(getattr(result, "report_markdown", "") or ""),
-        "trace_path": trace_path.as_posix() if hasattr(trace_path, "as_posix") else str(trace_path or ""),
-        "run_dir": run_dir.as_posix() if hasattr(run_dir, "as_posix") else str(run_dir or ""),
+        "trace_path": _pathish_to_string(trace_path),
+        "run_dir": _pathish_to_string(run_dir),
         "workflow_complete": bool(getattr(result, "workflow_complete", False)),
         "execution_audit_passed": bool(getattr(result, "execution_audit_passed", False)),
+        "lineage_json_path": _pathish_to_string(getattr(result, "lineage_json_path", "")),
+        "lineage_mermaid_path": _pathish_to_string(getattr(result, "lineage_mermaid_path", "")),
     }
 
 
-def _run_single_task_child(queue: mp.Queue, runner: Callable[..., Any], task: DataSciBenchTask, config: DataSciBenchRunConfig, data_path: Path) -> None:
+def _run_single_task_child(
+    queue: mp.Queue,
+    runner: Callable[..., Any],
+    task: DataSciBenchTask,
+    config: DataSciBenchRunConfig,
+    data_path: Path,
+    contract: DataSciBenchArtifactContract | None,
+) -> None:
     try:
-        result = _run_single_task(runner=runner, task=task, config=config, data_path=data_path)
+        result = _run_single_task(runner=runner, task=task, config=config, data_path=data_path, contract=contract)
         queue.put({"ok": True, "payload": _task_result_to_payload(result)})
     except BaseException as exc:
         queue.put({"ok": False, "error": str(exc), "traceback": traceback.format_exc()})
@@ -459,13 +521,14 @@ def _run_single_task_with_timeout(
     task: DataSciBenchTask,
     config: DataSciBenchRunConfig,
     data_path: Path,
+    contract: DataSciBenchArtifactContract | None = None,
 ) -> Any:
     if config.task_timeout_seconds <= 0:
-        return _run_single_task(runner=runner, task=task, config=config, data_path=data_path)
+        return _run_single_task(runner=runner, task=task, config=config, data_path=data_path, contract=contract)
 
     ctx = mp.get_context("spawn")
     queue: mp.Queue = ctx.Queue(maxsize=1)
-    process = ctx.Process(target=_run_single_task_child, args=(queue, runner, task, config, data_path))
+    process = ctx.Process(target=_run_single_task_child, args=(queue, runner, task, config, data_path, contract))
     process.start()
     try:
         message = queue.get(timeout=config.task_timeout_seconds)
@@ -535,6 +598,11 @@ def run_datascibench_sample(
         print(start_message, flush=True)
         _append_progress(progress_log_path, start_message)
         input_path = create_task_input_manifest(task, config.data_root / "run_inputs")
+        artifact_contract = load_artifact_contract(
+            data_root=config.data_root,
+            task_id=task.task_id,
+            contract_mode=config.contract_mode,
+        )
         record: dict[str, Any] = {
             "id": task.task_id,
             "task_group": task.task_group,
@@ -547,6 +615,12 @@ def run_datascibench_sample(
             "run_dir": "",
             "attempt_count": 0,
             "prompt_path": task.prompt_path.as_posix(),
+            "artifact_contract_status": artifact_contract.status,
+            "artifact_contract": artifact_contract.to_dict(),
+            "required_artifact_count": len(artifact_contract.required_artifacts),
+            "found_artifact_count": 0,
+            "missing_required_artifacts": [],
+            "artifact_contract_passed": False,
         }
         try:
             result = None
@@ -554,7 +628,13 @@ def run_datascibench_sample(
             for attempt in range(1, max(0, config.task_retries) + 2):
                 record["attempt_count"] = attempt
                 try:
-                    result = _run_single_task_with_timeout(runner=runner, task=task, config=config, data_path=input_path)
+                    result = _run_single_task_with_timeout(
+                        runner=runner,
+                        task=task,
+                        config=config,
+                        data_path=input_path,
+                        contract=artifact_contract,
+                    )
                     last_exc = None
                     break
                 except Exception as exc:
@@ -568,17 +648,31 @@ def run_datascibench_sample(
             report_markdown = str(getattr(result, "report_markdown", "") or "")
             format_compliant, extracted_result, result_source = extract_datascibench_result_block(report_markdown)
             raw_report_path = _save_raw_report(report_dir, task.task_id, report_markdown)
+            result_run_dir = getattr(getattr(result, "run_dir", ""), "as_posix", lambda: str(getattr(result, "run_dir", "")))()
+            artifact_contract_check = validate_artifact_contract(
+                artifact_contract,
+                run_dir=result_run_dir,
+                report_markdown=report_markdown,
+            )
             record.update(
                 {
                     "status": "completed",
                     "raw_report_path": raw_report_path.as_posix(),
-                    "trace_path": getattr(getattr(result, "trace_path", ""), "as_posix", lambda: str(getattr(result, "trace_path", "")))(),
-                    "run_dir": getattr(getattr(result, "run_dir", ""), "as_posix", lambda: str(getattr(result, "run_dir", "")))(),
+                    "trace_path": _pathish_to_string(getattr(result, "trace_path", "")),
+                    "run_dir": result_run_dir,
+                    "lineage_json_path": _pathish_to_string(getattr(result, "lineage_json_path", "")),
+                    "lineage_mermaid_path": _pathish_to_string(getattr(result, "lineage_mermaid_path", "")),
                     "workflow_complete": bool(getattr(result, "workflow_complete", False)),
                     "execution_audit_passed": bool(getattr(result, "execution_audit_passed", False)),
                     "format_compliant": format_compliant,
                     "datascibench_result": extracted_result,
                     "datascibench_result_source": result_source,
+                    "artifact_contract_validation": artifact_contract_check,
+                    "artifact_contract_passed": bool(artifact_contract_check.get("artifact_contract_passed", False)),
+                    "required_artifact_count": int(artifact_contract_check.get("required_artifact_count", 0) or 0),
+                    "found_artifact_count": int(artifact_contract_check.get("found_artifact_count", 0) or 0),
+                    "missing_required_artifacts": list(artifact_contract_check.get("missing_required_artifacts", []) or []),
+                    "found_artifacts": list(artifact_contract_check.get("found_artifacts", []) or []),
                 }
             )
         except Exception as exc:
@@ -628,6 +722,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--symbolic-profile", choices=("full", "prompt_only", "none"), default="full")
     parser.add_argument("--vision-review-mode", choices=("off", "auto", "on"), default="off")
     parser.add_argument("--task-timeout-seconds", type=int, default=0)
+    parser.add_argument("--contract-mode", choices=("auto", "off"), default="auto")
+    parser.add_argument("--block-pip-install", action="store_true")
     return parser
 
 
@@ -651,6 +747,8 @@ def main() -> int:
         vision_review_mode=args.vision_review_mode,
         task_retries=max(0, args.task_retries),
         task_timeout_seconds=max(0, args.task_timeout_seconds),
+        contract_mode=args.contract_mode,
+        block_pip_install=bool(args.block_pip_install),
     )
     result = run_datascibench_sample(config)
     print(f"DataSciBench report directory: {result['report_dir']}")
