@@ -1,7 +1,7 @@
 <div align="center">
 <h1>Academic-Data-Agent</h1>
 
-**面向科研与学术场景的结构化数据分析智能体工作台**
+**面向科研与学术场景的结构化数据分析 Agent 工作台**
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
@@ -10,48 +10,34 @@
 </div>
 
 ## 项目简介
-**Academic-Data-Agent** 是一个基于 `hello-agents` 二次开发的科研表格分析智能体工作台。当前正式主线是“**结构化表格数据分析 + 可审计报告生成 + 历史结果追问**”，重点不是做通用聊天 Agent，而是把科研数据分析流程做成可运行、可追溯、可审稿、可回归验证的工程闭环。
 
-本项目实现了一个带有神经符号思想的可靠数据分析 LLM Agent。更准确地说，它是一个 **neuro-symbolic-inspired LLM agent for reliable statistical data analysis**：LLM、embedding、RAG 和 memory 负责语义理解、检索和生成，统计规则、JSON 协议、AST 审计、报告契约和 blocking check 负责约束、验证和返修。项目不宣称自己是完整的 neuro-symbolic learning system，也不引入逻辑推理器、知识图谱推理、规则学习或可微符号模块。
+**Academic-Data-Agent** 是一个基于 `hello-agents` 二次开发的数据科学 Agent 项目，主线聚焦 **结构化表格数据分析、可审计报告生成、公开 benchmark 评测和历史结果追问**。
 
-当前项目重点解决的是：
+项目不是通用聊天 Agent，而是把科研数据分析流程拆成可运行、可追踪、可审计、可复现的工程闭环：
 
-- 用户上传一份结构化表格数据
-- 系统构建数据上下文，并按需引入本地参考资料与项目记忆
-- analyst 通过受控 ReAct 循环调用 Python 完成清洗、统计、绘图和报告生成
-- execution audit 强校验 `cleaned_data.csv` 的保存与后续重读，确保正式结果来自全量清洗数据
-- report contract 与 reviewer 共同检查报告结构、统计解释、图表证据和引用可靠性
-- 每次运行都会沉淀报告、图表、trace、review 和 run summary
-- 历史问答可以围绕既有运行结果继续解释、对比和复盘
+- 输入 `csv / xls / xlsx` 等结构化表格数据；
+- 构建数据上下文，并按需接入 RAG、成功经验和失败教训；
+- 通过受控 ReAct 循环调用 Python 完成清洗、统计、建模、绘图和报告；
+- 用 execution audit、report contract、artifact validation 和 reviewer 约束输出质量；
+- 为公开 benchmark 增加 metric-aware artifact contract，按官方 scorer 要求生成可评分文件；
+- 每次运行保存报告、图表、trace、review、run summary 和数据血缘 DAG；
+- 支持 DABench、DataSciBench、本地 harness 和 symbolic ablation 评测。
 
-当前项目支持：
-
-- 表格数据输入：`csv / xls / xlsx`
-- 受控分析工作流：工具调用、运行轨迹、异常回退与审稿返修
-- 工程化 RAG：查询改写、混合检索、结构化切块、重排与证据登记
-- 阶段执行审计：强校验 `cleaned_data.csv` 的生成与重读
-- 共享 report contract：统一检查报告结构、图表解释、统计假设、效应量、置信区间和引用覆盖
-- 成功经验 / 失败教训 / 外部参考资料分层存储
-- 历史问答：围绕历史运行结果做单次追问或跨运行对比
-- Gradio 工作台、历史回放与工件下载
-- eval harness：固定 10 个自造表格任务，当前 `seed_v5` 稳定基线为 `10/10 accepted`
-- DataSciBench metric-aware artifact contract：读取 `metric.yaml` 中的官方 scorer 需求，约束输出可评分 artifact
-- 数据血缘 DAG：每次运行可生成 `lineage.json` 与 Mermaid `lineage.mmd`，追踪 raw data、清洗步骤、生成工件、图表与 final report
-- symbolic ablation：支持 `full`、`prompt_only`、`none` 三组 profile，对比符号化规则和验证反馈对流程合规性、报告完整性和可复现性的影响
+一句话概括：这是一个 **面向数据科学任务的可评分、可审计、可复现实验型 Agent 系统**。
 
 ## 公开评测结果
 
-> 说明：DABench 与 DataSciBench 均为 **local reproduction, not leaderboard**。也就是使用公开数据和官方或官方风格 scorer 在本地复现实验得到的结果，不是官方 leaderboard 提交结果，不宣称官方排名或 SOTA。
+> 说明：DABench 与 DataSciBench 均为 **local reproduction, not leaderboard**。结果来自公开数据与官方或官方风格 scorer 的本地复现实验，不代表官方 leaderboard 提交、官方排名或 SOTA 声明。
 
 | Benchmark | 任务数 | 指标 | 当前结果 | 说明 |
 | --- | ---: | --- | ---: | --- |
-| 自建回归评测 `seed_v5` | 10 | accepted | 10/10 | 用于日常回归稳定性检查，外部说服力有限 |
+| 自建回归评测 `seed_v5` | 10 | accepted | 10/10 | 日常回归稳定性检查，外部说服力有限 |
 | DABench closed-form dev | 257 | official-style Accuracy by Question | 85.60%-85.94% | 当前公开文件为 257 题，不是网页旧口径 311 题 |
 | DABench closed-form dev | 257 | local compatible exact match | 87.16% | 224/257，包含轻微格式归一化 |
-| DataSciBench full local reproduction | 222 | official CR | **66.27%** | 官方 scorer 本地复现，222/222 scored，0 unsupported，0 evaluator failed；非 leaderboard |
-| DataSciBench clean ablation `full` | 60 | official CR | **53.12%** | `.conda-datascibench-repro` 干净环境，固定 seed/task list，禁止任务内 `pip install` |
+| DataSciBench full local reproduction | 222 | official CR | **66.27%** | 官方 scorer 本地复现，222/222 scored，0 unsupported，0 evaluator failed |
+| DataSciBench clean ablation `full` | 60 | official CR | **53.12%** | 干净环境固定 60 题消融，禁止任务内 `pip install` |
 
-DataSciBench 分项结果：
+DataSciBench 222 题分项：
 
 | Task group | Count | Mean CR | CR = 1.0 | CR >= 0.5 |
 | --- | ---: | ---: | ---: | ---: |
@@ -60,7 +46,7 @@ DataSciBench 分项结果：
 | dl | 10 | 31.67% | 0 | 4 |
 | human | 25 | 33.40% | 3 | 8 |
 
-DataSciBench clean 60-task 消融结果：
+DataSciBench clean 60-task 消融：
 
 | Profile | Mean CR | 95% CI | Scored | Contract pass | Run errors |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -68,7 +54,7 @@ DataSciBench clean 60-task 消融结果：
 | `prompt_only` | 50.81% | 40.89%-60.57% | 60/60 | 97.73% | 1 |
 | `none` | 50.17% | 40.87%-59.95% | 59/60 | 100.00% | 1 |
 
-消融解释：`full` 相比 `prompt_only` 提升 2.32 个百分点，相比 `none` 提升 2.16 个百分点，但 bootstrap 95% CI 仍跨 0，因此当前只能表述为“固定 60 题子集上的正向趋势”，不能表述为显著提升。失败分析显示主要瓶颈已经从 artifact/格式问题转向 `calculation_error`。
+消融结论：`full` 相比 `prompt_only` 提升 2.32 个百分点，相比 `none` 提升 2.16 个百分点，但 bootstrap 95% CI 仍跨 0。因此当前应表述为“固定 60 题子集上的正向趋势”，不能表述为显著提升。失败分析显示主要瓶颈已从 artifact/格式问题转向 `calculation_error`。
 
 DataSciBench 公开结果对比：
 
@@ -81,8 +67,6 @@ DataSciBench 公开结果对比：
 | GPT-4-Turbo | 58.87% | DataSciBench 公开结果 |
 | Claude-3.5-Sonnet | 58.11% | DataSciBench 公开结果 |
 
-当前结论：项目已经具备比自建测试更强的公开 benchmark 证据。DataSciBench 总分主要由 BCB 代码类任务拉动，`csv_excel`、`dl`、`human` 仍是后续主要优化方向。
-
 详细报告：
 
 - [DABench public benchmark report](./docs/dabench_public_benchmark_report.md)
@@ -92,7 +76,7 @@ DataSciBench 公开结果对比：
 
 ## 架构图览
 
-以下 SVG 图均位于 [`diagrams/`](./diagrams/) 目录，可在 GitHub README 中直接缩放查看，也可以通过 [`diagrams/viewer.html`](./diagrams/viewer.html) 本地浏览整套图集。
+以下图片位于 [`diagrams/`](./diagrams/) 目录，可在 GitHub README 中直接查看。
 
 ### 1. 总体六层架构
 
@@ -124,118 +108,69 @@ DataSciBench 公开结果对比：
 
 ### 适用场景
 
-- 学术或科研表格数据的自动清洗、统计分析与报告生成
-- 需要保留图表、轨迹、审稿记录和历史回放的分析任务
-- 希望对历史分析结果继续提问、对比和复盘的项目型工作流
-- 希望通过固定 eval baseline 持续验证分析链路稳定性的实验型项目
+- 科研表格数据的自动清洗、统计分析、图表生成和报告撰写；
+- 需要保留完整 trace、图表、审稿记录和运行工件的分析任务；
+- 需要围绕历史分析结果继续追问、对比和复盘的项目；
+- 需要用公开 benchmark 和固定 eval baseline 验证 Agent 能力的实验型工作。
 
 ---
 
 ## 核心特点
 
-### 1. 稳定基线：seed_v5 作为当前回归对照
+### 1. 受控 ReAct 分析循环
 
-- 当前固定 10 任务 eval 已形成稳定基线：`eval/baselines/seed_v5.json`
-- `seed_v5` 结果为 `10/10 accepted`、`workflow_complete_rate=1.0`、`execution_audit_pass_rate=1.0`
-- 后续改动默认对照 `seed_v5`，优先检查真实失败 run，而不是扩大 prompt 面积
-- harness 覆盖两组比较、缺失值、异常值、多组比较、时间趋势、相关性、RAG 和 Memory
+- analyst 按步骤调用 Python 工具，而不是直接生成不可验证结论；
+- 每轮工具调用、观测结果、审稿意见和最终报告都会写入 trace；
+- 支持 `draft / standard / publication` 质量模式。
 
-### 2. 主线清晰：聚焦结构化表格分析
+### 2. 面向科研报告的治理链路
 
-- 当前正式输入主线只面向结构化表格数据
-- 上传后直接进入数据上下文构建、检索增强、分析执行与审稿流程
-- 仓库中仍保留部分旧的 PDF 兼容代码，但 PDF 已不再是当前版本的正式入口主线
+- execution audit 检查正式分析是否基于清洗后的全量数据；
+- report contract 检查报告结构、统计解释、图表证据和引用覆盖；
+- reviewer 对结论边界、证据一致性和报告完整性做二次审查。
 
-### 3. 受控分析，而不是自由聊天
+### 3. Metric-Aware Artifact Contract
 
-- 分析主循环采用 **ReAct 风格**：逐步决策、调用工具、读取观察结果、继续推进
-- 不是纯聊天式回答，也不是“先出完整计划再机械执行”的 plan-and-execute
-- 外层还有执行审计、报告契约和审稿返修，因此整体更像“分析员 + 质检员 + 审稿人”
+- DataSciBench 适配器读取 `metric.yaml` 中的官方 scorer 需求；
+- 对 `csv_excel / human` 任务注入 required artifact 文件名、字段和格式要求；
+- 运行后验证 required artifact 是否真实生成，并优先复制给官方 evaluator。
 
-### 4. 真正基于全量数据分析
+### 4. 数据血缘 DAG
 
-- `data_context` 只给模型提供字段、规模、样例等压缩摘要，负责“看懂这是什么数据”
-- 正式统计分析和绘图必须通过 Python 工具重新读取本地文件完成
-- 阶段执行审计会检查是否明确生成并重读 `cleaned_data.csv`
-- 如果无法证明正式分析基于清洗后的全量数据，该轮不能通过审稿
+- 每次运行生成 `lineage.json` 和 Mermaid `lineage.mmd`；
+- 追踪 raw data、cleaned data、Python step、generated artifact、figure、final report 和 contract metric；
+- 适合用于审计、展示和技术报告。
 
-### 5. 共享报告契约：把基础质量问题前置
+### 5. RAG、Memory 与历史追问
 
-- `report_contract` 在 reviewer 前统一检查报告结构、图表解释、统计假设、effect size、CI 和引用覆盖
-- analyst 返修会收到结构化 revision brief，而不是只看 reviewer 的自然语言批评
-- reviewer 更聚焦高层统计逻辑、证据匹配和解释边界，减少与 analyst 的标准错位
+- RAG 提供外部参考资料和证据片段；
+- Memory 分层保存成功经验和失败教训；
+- History QA 读取历史工件回答追问，不重新执行新的数据分析。
 
-### 6. RAG 负责外部依据，不负责“记住一切”
+### 6. 评测与消融
 
-- RAG 的职责是提供外部参考资料、背景知识和证据片段
-- 它服务于分析解释、报告引用和历史问答检索底座
-- 它不直接存放运行失败经验，也不替代项目记忆
-- 当 embedding 未配置但提供了本地参考资料时，系统支持 keyword-only local RAG fallback
-
-### 7. 记忆分层更清楚
-
-- **成功经验**：只沉淀最终通过审稿、工作流完整的运行经验
-- **失败教训**：单独沉淀完整失败运行中的负向约束和禁忌清单
-- **外部参考资料**：单独进入知识库，用于 RAG 检索
-- **运行档案**：每次运行都保留完整报告、轨迹、图表和审稿记录
-
-### 8. 历史问答不是“重新分析一次”
-
-- 历史问答读取的是历史运行工件，而不是重新执行新的数据分析代码
-- 支持围绕某次运行解释方法、图表、结论和审稿意见
-- 也支持跨多次运行做对比总结，并对非 `accepted` 的来源显式标注状态
-
-### 9. 有工作台，不只是脚本
-
-- Web 工作台支持发起分析、查看结果、浏览历史与继续追问
-- 自动保存报告、图表、轨迹、审稿记录和知识库状态
-- 支持历史记录浏览与工件下载，便于复盘和展示
+- 本地 harness 使用固定 10 题 `seed_v5` 做回归；
+- DABench 用于表格数据分析 closed-form 公共评测；
+- DataSciBench 接入 HuggingFace GT 与官方 scorer；
+- 支持 `full / prompt_only / none` 三组 symbolic profile 消融。
 
 ---
 
 ## 系统架构
 
-当前项目可以理解为六层结构：
+当前系统可理解为六层：
 
-### 1. 输入与数据上下文层
-
-- 接收结构化表格输入
-- 构建 `data_context`
-- 提供字段、类型、规模、样例行和数据警告
-
-### 2. 检索与记忆层
-
-- 成功经验检索：提供正向做法、稳定偏好和已验证约束
-- 失败教训检索：提供负向约束、常见错误和额外检查项
-- RAG 检索：提供外部参考资料和证据片段
-
-### 3. 分析执行层
-
-- `run_analysis(...)` 串联整条主链路
-- analyst loop 负责多步分析与工具调用
-- Python 工具执行真实的数据清洗、统计和绘图
-
-### 4. 治理与审计层
-
-- execution audit：检查是否真的基于 `cleaned_data.csv` 做正式分析
-- report contract：检查报告结构、统计契约、图表解释和证据引用
-- reviewer：检查结论、图表、证据与引用是否可靠
-- artifact validation：检查关键工件是否完整
-
-### 5. Harness 与回归验证层
-
-- `eval/tasks/*.yaml` 固定 10 个自造科研表格任务
-- `eval/scripts/run_eval.py` 统一运行任务、保存 summary、生成 baseline
-- 当前稳定基线为 `seed_v5`，后续改动默认以它作为回归对照
-
-### 6. 展示与追问层
-
-- CLI 负责命令行运行
-- Gradio 工作台负责上传、结果展示、历史回放和历史问答
+1. **输入与数据上下文层**：读取表格，生成字段、类型、规模、样例和数据质量摘要。
+2. **检索与记忆层**：检索外部资料、成功经验和失败教训。
+3. **分析执行层**：通过 `run_analysis(...)` 编排 ReAct loop 和 Python 工具。
+4. **治理与审计层**：执行 audit、report contract、reviewer、artifact validation 和 lineage。
+5. **评测层**：运行本地 harness、DABench、DataSciBench 和 ablation。
+6. **展示与追问层**：保存运行工件，并支持历史记录浏览和结果追问。
 
 ---
 
 ## 快速开始
+
 ### 环境要求
 
 - Python 3.10+
@@ -253,14 +188,14 @@ pip install -r requirements.txt
 
 ```env
 LLM_MODEL_ID=mimo-v2.5
-LLM_BASE_URL=https://token-plan-cn.xiaomimimo.com/anthropic
+LLM_BASE_URL=https://your-llm-endpoint/anthropic
 LLM_API_KEY=your_api_key_here
 LLM_TIMEOUT=120
 
 # 可选：联网搜索
 TAVILY_API_KEY=your_tavily_api_key_here
 
-# 可选：向量检索、成功经验、失败教训、历史问答检索
+# 可选：向量检索
 EMBEDDING_MODEL_ID=text-embedding-3-small
 EMBEDDING_BASE_URL=https://api.openai.com/v1
 EMBEDDING_API_KEY=your_embedding_api_key
@@ -273,10 +208,7 @@ VISION_LLM_API_KEY=your_vision_api_key
 VISION_LLM_TIMEOUT=120
 ```
 
-主文本模型当前示例使用小米 MiMo 的 Anthropic Messages 兼容接口。若改回 DeepSeek endpoint，运行时仍会把 `deepseek-chat`、`deepseek-reasoner` 或 `deepseek-v4-pro` 等 DeepSeek 文本模型归一化到 `deepseek-v4-flash`，并显式关闭 thinking。
-
 ### 命令行运行
-分析表格：
 
 ```bash
 python main.py --data data/simple_data.xlsx
@@ -294,20 +226,12 @@ python gradio_app.py
 
 ### CLI 常用参数
 
-- `--data`
-- `--output-dir`
-- `--query`
-- `--quality-mode`
-- `--latency-mode`
-- `--vision-review-mode`
-- `--vision-max-images`
-- `--vision-max-image-side`
-
-### 质量模式
-
-- `draft`：不走审稿，直接输出草稿
-- `standard`：默认允许 1 轮返修
-- `publication`：默认允许 2 轮返修，并可自动启用视觉审稿
+- `--data`：输入表格路径
+- `--output-dir`：运行工件输出目录
+- `--query`：用户分析问题
+- `--quality-mode`：`draft / standard / publication`
+- `--latency-mode`：`auto / quality / fast`
+- `--vision-review-mode`：`off / auto / on`
 
 ### Python API
 
@@ -328,32 +252,47 @@ result = run_analysis(
 print(result.report_path)
 print(result.trace_path)
 print(result.review_status)
-print(result.rag_status)
-print(result.memory_writeback_status)
-print(result.failure_memory_writeback_status)
+print(result.lineage_mermaid_path)
 ```
 
-### Web 工作台能力
+### 常用评测命令
 
-- 上传结构化表格
-- 上传可沉淀的参考资料
-- 配置是否启用外部参考资料检索
-- 配置是否启用成功经验 / 失败教训回忆
-- 查看实时进度、结果摘要、图表和审稿状态
-- 浏览历史记录并继续追问
+本地 10 题回归：
+
+```bash
+python eval/scripts/run_eval.py --tasks eval/tasks --env-file .env
+```
+
+DABench：
+
+```bash
+python eval/scripts/run_dabench.py --full-validation --dabench-mode --env-file .env --vision-review-mode off
+```
+
+DataSciBench clean 60-task ablation：
+
+```bash
+python eval/scripts/run_datascibench_ablation.py \
+  --data-root data/external/datascibench_official \
+  --hf-root data/external/datascibench_hf \
+  --official-root data/external/datascibench_official \
+  --run-official-eval \
+  --env-file .env \
+  --seed 20260519 \
+  --max-steps 16 \
+  --task-timeout-seconds 900 \
+  --block-pip-install
+```
 
 ### 文档索引
 
-- [核心代码学习手册](./docs/核心代码学习手册.md)
-- [项目概念审计](./docs/项目概念审计.md)
-- [项目改进路线图](./docs/项目改进路线图.md)
-- [项目主链路拆解](./docs/项目主链路拆解.md)
-- [令牌、上下文与审稿说明](./docs/令牌、上下文与审稿说明.md)
-- [Harness seed_v4 / seed_v5 迭代总结](./docs/harness_seed_v4_iteration_summary.md)
 - [DABench public benchmark report](./docs/dabench_public_benchmark_report.md)
 - [DataSciBench formal comparison](./docs/datascibench_formal_comparison_local_reproduction.md)
 - [DataSciBench clean ablation report](./docs/datascibench_clean_ablation_20260520.md)
 - [DataSciBench scorer readiness notes](./docs/datascibench_official_eval_readiness.md)
+- [核心代码学习手册](./docs/核心代码学习手册.md)
+- [项目主链路拆解](./docs/项目主链路拆解.md)
+- [项目改进路线图](./docs/项目改进路线图.md)
 
 ---
 
@@ -361,32 +300,25 @@ print(result.failure_memory_writeback_status)
 
 ```text
 .
-├── data/                          示例数据
-├── docs/                          技术说明与学习文档
-├── eval/                          固定评测任务、baseline 与回归脚本
-├── memory/                        外部参考资料库、成功经验与失败教训
-├── outputs/                       运行产物与 Web 上传缓存
+├── data/                         示例数据与外部 benchmark 数据目录
+├── docs/                         技术说明、评测报告与复盘文档
+├── eval/                         本地 harness、DABench、DataSciBench 与消融脚本
+├── memory/                       外部参考资料、成功经验与失败教训
+├── outputs/                      每次分析运行的报告、图表、trace 和 lineage
 ├── src/
 │   └── data_analysis_agent/
-│       ├── agent_runner.py        主分析流程与编排入口
-│       ├── artifact_service.py    工件落盘与运行元数据汇总
-│       ├── config.py              运行配置
-│       ├── data_context.py        数据上下文构建
-│       ├── execution_audit.py     全量数据使用阶段审计
-│       ├── history_qa.py          历史问答服务
-│       ├── knowledge_context.py   记忆 / RAG / 证据注入层
-│       ├── prompts.py             Analyst / Reviewer Prompt
-│       ├── reporting.py           报告提取、引用解析与落盘
-│       ├── report_contract.py     共享报告契约与返修 brief
-│       ├── review_service.py      审稿任务构建与日志落地
-│       ├── rag/                   外部参考资料检索子系统
-│       ├── memory/                成功经验与失败教训子系统
-│       ├── vision_review.py       视觉审稿
-│       └── web/                   Gradio 工作台
-├── tests/                         单元测试
-├── gradio_app.py                  Web 启动入口
-├── main.py                        CLI 入口
-├── requirements.txt
+│       ├── agent_runner.py       主分析流程与编排入口
+│       ├── artifact_service.py   工件落盘与 trace 保存
+│       ├── data_context.py       数据上下文构建
+│       ├── execution_audit.py    全量数据使用审计
+│       ├── lineage.py            数据血缘 DAG 生成
+│       ├── report_contract.py    报告契约与返修 brief
+│       ├── reporting.py          报告解析与证据覆盖分析
+│       ├── rag/                  外部资料检索
+│       ├── memory/               成功经验与失败教训
+│       └── web/                  Web 工作台相关代码
+├── tests/                        单元测试
+├── main.py                       CLI 入口
 └── README.md
 ```
 
@@ -394,7 +326,7 @@ print(result.failure_memory_writeback_status)
 
 ## 运行产物
 
-每次运行都会在 `outputs/run_YYYYMMDD_HHMMSS/` 下生成独立工件，常见内容包括：
+每次 `run_analysis(...)` 会在 `outputs/run_YYYYMMDD_HHMMSS/` 下生成独立工件：
 
 ```text
 outputs/run_YYYYMMDD_HHMMSS/
@@ -403,28 +335,25 @@ outputs/run_YYYYMMDD_HHMMSS/
 ├── figures/
 ├── logs/
 │   ├── agent_trace.json
-│   ├── review_round_1_review.json
-│   └── review_round_1_visual_review.json
+│   ├── lineage.json
+│   └── lineage.mmd
 ├── review_round_1_report.md
 └── final_report.md
 ```
 
-`agent_trace.json` 当前会记录：
+核心可审计信息：
 
-- 工作流状态与事件流
-- analyst 每步工具调用摘要
-- Python 工具的完整输入代码
-- 阶段执行审计结果
-- report contract 检查结果
-- RAG 检索与证据登记摘要
-- 成功经验 / 失败教训的检索与写回状态
-- 审稿历史与最终结论
+- analyst 每步工具调用与 observation；
+- execution audit 与 report contract 结果；
+- RAG / memory 检索和写回状态；
+- generated artifacts、figures 与 final report；
+- lineage DAG 的节点、边和缺失 artifact 统计。
 
 ---
 
 ## Eval 基线
 
-当前固定 harness 包含 10 个任务：
+当前本地 harness 固定 10 个任务：
 
 ```text
 before_after_paired_measure
@@ -450,13 +379,12 @@ execution_audit_pass_rate: 1.0
 review_reject_rate: 0.0
 ```
 
-后续开发默认使用 `seed_v5` 作为回归对照。若出现失败，优先检查对应 run 的 report、trace、review log 和 contract summary，再做最小修复。
-
 ---
 
 ## 当前边界
 
-- 当前默认正式入口只支持结构化表格数据，不再把 PDF 作为正式输入主线
-- 历史问答只读取历史工件，不会重新执行新的数据分析代码
-- 联网搜索、向量检索和视觉审稿依赖外部模型或 API 配置
-- 当前更像“分析工作台 + 历史追问系统”，不是通用多工具智能体平台
+- 默认正式输入主线是结构化表格数据，不把 PDF 作为当前主入口；
+- 公开 benchmark 结果均为本地复现，不是官方 leaderboard 提交；
+- DataSciBench 总分主要由 BCB 代码类任务拉动，`csv_excel / human / dl` 仍是主要改进方向；
+- clean ablation 显示 `full` 有正向趋势，但统计显著性不足；
+- 当前主要瓶颈是 `calculation_error`，下一步更适合做 metric-aware self-check / retry，而不是继续扩大 prompt 面积。
