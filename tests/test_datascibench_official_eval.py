@@ -180,6 +180,37 @@ class DataSciBenchOfficialEvalTests(unittest.TestCase):
         self.assertTrue((official_run_dir / "final_report.md").exists())
         self.assertTrue((official_run_dir / "target.xlsx").exists())
 
+    def test_stage_regular_output_prioritizes_contract_artifacts(self):
+        case_dir = self._case_dir()
+        official_root = case_dir / "official"
+        task_dir = official_root / "data" / "human_0"
+        task_dir.mkdir(parents=True)
+        (task_dir / "gt").mkdir()
+        run_dir = case_dir / "run"
+        run_dir.mkdir()
+        contract_artifact = case_dir / "most_corr_output.csv"
+        contract_artifact.write_text("Ticker 1,Ticker 2\nFB,MSFT\n", encoding="utf-8")
+        record = {
+            "id": "human_0",
+            "task_group": "human",
+            "run_dir": run_dir.as_posix(),
+            "trace_path": "",
+            "raw_report_path": "",
+            "found_artifacts": [{"name": "most_corr_output.csv", "path": contract_artifact.as_posix()}],
+        }
+        config = official_eval.OfficialEvalConfig(
+            summary_path=case_dir / "summary.json",
+            official_root=official_root,
+            reports_dir=case_dir / "reports",
+        )
+
+        staged = official_eval.stage_regular_output(record, config)
+        official_run_dir = Path(staged["official_input_path"])
+
+        self.assertEqual(staged["official_prepare_status"], "prepared")
+        self.assertTrue((official_run_dir / "most_corr_output.csv").exists())
+        self.assertIn("most_corr_output.csv", staged["copied_contract_artifacts"][0])
+
 
 if __name__ == "__main__":
     unittest.main()

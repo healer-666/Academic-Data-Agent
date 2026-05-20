@@ -35,6 +35,8 @@
 - 历史问答：围绕历史运行结果做单次追问或跨运行对比
 - Gradio 工作台、历史回放与工件下载
 - eval harness：固定 10 个自造表格任务，当前 `seed_v5` 稳定基线为 `10/10 accepted`
+- DataSciBench metric-aware artifact contract：读取 `metric.yaml` 中的官方 scorer 需求，约束输出可评分 artifact
+- 数据血缘 DAG：每次运行可生成 `lineage.json` 与 Mermaid `lineage.mmd`，追踪 raw data、清洗步骤、生成工件、图表与 final report
 - symbolic ablation：支持 `full`、`prompt_only`、`none` 三组 profile，对比符号化规则和验证反馈对流程合规性、报告完整性和可复现性的影响
 
 ## 公开评测结果
@@ -46,7 +48,8 @@
 | 自建回归评测 `seed_v5` | 10 | accepted | 10/10 | 用于日常回归稳定性检查，外部说服力有限 |
 | DABench closed-form dev | 257 | official-style Accuracy by Question | 85.60%-85.94% | 当前公开文件为 257 题，不是网页旧口径 311 题 |
 | DABench closed-form dev | 257 | local compatible exact match | 87.16% | 224/257，包含轻微格式归一化 |
-| DataSciBench | 222 | official CR | **66.27%** | 官方 scorer 本地复现，222/222 scored，0 unsupported，0 evaluator failed |
+| DataSciBench full local reproduction | 222 | official CR | **66.27%** | 官方 scorer 本地复现，222/222 scored，0 unsupported，0 evaluator failed；非 leaderboard |
+| DataSciBench clean ablation `full` | 60 | official CR | **53.12%** | `.conda-datascibench-repro` 干净环境，固定 seed/task list，禁止任务内 `pip install` |
 
 DataSciBench 分项结果：
 
@@ -56,6 +59,16 @@ DataSciBench 分项结果：
 | csv_excel | 20 | 41.76% | 3 | 9 |
 | dl | 10 | 31.67% | 0 | 4 |
 | human | 25 | 33.40% | 3 | 8 |
+
+DataSciBench clean 60-task 消融结果：
+
+| Profile | Mean CR | 95% CI | Scored | Contract pass | Run errors |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `full` | **53.12%** | 43.32%-63.13% | 60/60 | 97.73% | 1 |
+| `prompt_only` | 50.81% | 40.89%-60.57% | 60/60 | 97.73% | 1 |
+| `none` | 50.17% | 40.87%-59.95% | 59/60 | 100.00% | 1 |
+
+消融解释：`full` 相比 `prompt_only` 提升 2.32 个百分点，相比 `none` 提升 2.16 个百分点，但 bootstrap 95% CI 仍跨 0，因此当前只能表述为“固定 60 题子集上的正向趋势”，不能表述为显著提升。失败分析显示主要瓶颈已经从 artifact/格式问题转向 `calculation_error`。
 
 DataSciBench 公开结果对比：
 
@@ -74,6 +87,7 @@ DataSciBench 公开结果对比：
 
 - [DABench public benchmark report](./docs/dabench_public_benchmark_report.md)
 - [DataSciBench formal comparison](./docs/datascibench_formal_comparison_local_reproduction.md)
+- [DataSciBench clean ablation report](./docs/datascibench_clean_ablation_20260520.md)
 - [DataSciBench scorer readiness notes](./docs/datascibench_official_eval_readiness.md)
 
 ## 架构图览
@@ -338,6 +352,7 @@ print(result.failure_memory_writeback_status)
 - [Harness seed_v4 / seed_v5 迭代总结](./docs/harness_seed_v4_iteration_summary.md)
 - [DABench public benchmark report](./docs/dabench_public_benchmark_report.md)
 - [DataSciBench formal comparison](./docs/datascibench_formal_comparison_local_reproduction.md)
+- [DataSciBench clean ablation report](./docs/datascibench_clean_ablation_20260520.md)
 - [DataSciBench scorer readiness notes](./docs/datascibench_official_eval_readiness.md)
 
 ---

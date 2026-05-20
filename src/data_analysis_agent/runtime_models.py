@@ -332,3 +332,5 @@ class AnalysisRunResult:
     report_contract_passed: bool = False
     report_contract_blocking_issues: tuple[str, ...] = ()
     report_contract_issue_types: tuple[str, ...] = ()
+    lineage_json_path: Path | None = None
+    lineage_mermaid_path: Path | None = None

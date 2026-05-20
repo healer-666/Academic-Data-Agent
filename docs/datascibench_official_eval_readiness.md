@@ -232,9 +232,32 @@ Completed gates:
 2. A 10-task mixed pilot with official GT scored all selected `csv_excel`, `human`, and `dl` tasks.
 3. The official bridge now scores 222/222 tasks with 0 unsupported and 0 evaluator failures.
 4. The latest clean local reproduction reports 66.27% mean official CR.
+5. A clean 60-task `full / prompt_only / none` ablation was completed in `.conda-datascibench-repro` with fixed seed/task list, official scorer enabled, and task-level `pip install` blocked.
 
 Remaining cleanup before publishing:
 
 1. Treat the current number as local reproduction, not leaderboard.
 2. Investigate low-scoring `csv_excel`, `human`, and `dl` tasks before optimizing for another headline run.
 3. Keep raw official data, raw reports, and generated task artifacts out of git.
+
+## Clean Ablation Gate
+
+Source clean ablation:
+
+`eval/reports/datascibench_clean_ablation/20260520_105932/ablation_summary.json`
+
+| Profile | Mean official CR | Official scored | Contract pass | Run errors |
+| --- | ---: | ---: | ---: | ---: |
+| `full` | 0.5312 | 60 | 0.9773 | 1 |
+| `prompt_only` | 0.5081 | 60 | 0.9773 | 1 |
+| `none` | 0.5017 | 59 | 1.0000 | 1 |
+
+Failure analysis summary:
+
+| Profile | ok | calculation_error | task_timeout | dependency_error | artifact_missing | format_failure |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `full` | 44 | 15 | 0 | 1 | 0 | 0 |
+| `prompt_only` | 44 | 15 | 1 | 0 | 0 | 0 |
+| `none` | 46 | 13 | 1 | 0 | 0 | 0 |
+
+Interpretation: metric-aware artifact contracts are now mostly doing their job; the next optimization target is calculation correctness and metric-aware self-check/retry.

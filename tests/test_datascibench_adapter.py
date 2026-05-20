@@ -62,6 +62,19 @@ class DataSciBenchAdapterTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def _write_fake_metric(self, root: Path, task_id: str, artifact_name: str) -> None:
+        metric_dir = root / "metric" / task_id
+        metric_dir.mkdir(parents=True, exist_ok=True)
+        (metric_dir / "metric.yaml").write_text(
+            (
+                '"TMC-list":\n'
+                f"- code: \"output = pd.read_csv('{artifact_name}')\"\n"
+                "  metric: \"Data Completeness\"\n"
+                f"  ground_truth: \"{artifact_name}\"\n"
+            ),
+            encoding="utf-8",
+        )
+
     def test_load_select_and_query(self):
         root = self._case_dir() / "datascibench"
         self._write_fake_datascibench(root)
@@ -195,6 +208,78 @@ class DataSciBenchAdapterTests(unittest.TestCase):
 
         self.assertEqual(result["summary"]["status_distribution"].get("completed"), 1)
         self.assertEqual(result["summary"]["run_error_count"], 0)
+
+    def test_metric_aware_contract_validates_required_artifact(self):
+        case_dir = self._case_dir()
+        root = case_dir / "datascibench"
+        self._write_fake_datascibench(root)
+        self._write_fake_metric(root, "csv_excel_1", "result.csv")
+
+        def fake_runner(data_path, **kwargs):
+            run_dir = case_dir / "run"
+            run_dir.mkdir()
+            (run_dir / "result.csv").write_text("value\n1\n", encoding="utf-8")
+            self.assertIn("Metric-aware artifact contract", kwargs["query"])
+            self.assertIn("result.csv", kwargs["query"])
+            self.assertIn("lineage_contract", kwargs)
+            return SimpleNamespace(
+                report_markdown=f"# Report\n\nCreated `{(run_dir / 'result.csv').as_posix()}`\n\n<datascibench_result>\ncreated result.csv\n</datascibench_result>\n",
+                workflow_complete=True,
+                execution_audit_passed=True,
+                trace_path=run_dir / "trace.json",
+                run_dir=run_dir,
+            )
+
+        config = run_datascibench.DataSciBenchRunConfig(
+            data_root=root,
+            reports_dir=case_dir / "reports",
+            output_root=case_dir / "outputs",
+            sample_size=1,
+            seed=20260511,
+            task_ids=("csv_excel_1",),
+            allow_download=False,
+            data_source_type="all",
+            task_group="all",
+        )
+
+        result = run_datascibench.run_datascibench_sample(config, runner=fake_runner)
+        record = result["summary"]["results"][0]
+
+        self.assertTrue(record["artifact_contract_passed"])
+        self.assertEqual(result["summary"]["artifact_contract_pass_rate"], 1.0)
+
+    def test_contract_mode_off_preserves_old_query(self):
+        case_dir = self._case_dir()
+        root = case_dir / "datascibench"
+        self._write_fake_datascibench(root)
+        self._write_fake_metric(root, "csv_excel_1", "result.csv")
+
+        def fake_runner(data_path, **kwargs):
+            self.assertNotIn("Metric-aware artifact contract", kwargs["query"])
+            return SimpleNamespace(
+                report_markdown="# Report\n\n<datascibench_result>\nok\n</datascibench_result>\n",
+                workflow_complete=True,
+                execution_audit_passed=True,
+                trace_path=case_dir / "trace.json",
+                run_dir=case_dir / "run",
+            )
+
+        config = run_datascibench.DataSciBenchRunConfig(
+            data_root=root,
+            reports_dir=case_dir / "reports",
+            output_root=case_dir / "outputs",
+            sample_size=1,
+            seed=20260511,
+            task_ids=("csv_excel_1",),
+            allow_download=False,
+            data_source_type="all",
+            task_group="all",
+            contract_mode="off",
+        )
+
+        result = run_datascibench.run_datascibench_sample(config, runner=fake_runner)
+
+        self.assertEqual(result["summary"]["artifact_contract_applicable_count"], 0)
 
 
 if __name__ == "__main__":
