@@ -74,47 +74,6 @@ DataSciBench 公开结果对比：
 - [DataSciBench clean ablation report](./docs/datascibench_clean_ablation_20260520.md)
 - [DataSciBench scorer readiness notes](./docs/datascibench_official_eval_readiness.md)
 
-## 架构图览
-
-以下图片位于 [`diagrams/`](./diagrams/) 目录，可在 GitHub README 中直接查看。
-
-### 1. 总体六层架构
-
-<img src="./diagrams/01_overall_architecture.png" alt="Academic-Data-Agent 总体六层架构" width="100%">
-
-### 2. 主执行流水线
-
-<img src="./diagrams/02_main_pipeline.png" alt="Academic-Data-Agent 主执行流水线" width="100%">
-
-### 3. Neuro-Symbolic 治理架构
-
-<img src="./diagrams/03_neuro_symbolic.png" alt="Academic-Data-Agent Neuro-Symbolic 治理架构" width="100%">
-
-### 4. RAG 检索子系统
-
-<img src="./diagrams/04_rag_subsystem.png" alt="Academic-Data-Agent RAG 检索子系统" width="100%">
-
-### 5. 记忆子系统
-
-<img src="./diagrams/05_memory_subsystem.png" alt="Academic-Data-Agent 记忆子系统" width="100%">
-
-### 6. 审稿循环与质量模式
-
-<img src="./diagrams/06_review_system.png" alt="Academic-Data-Agent 审稿循环与质量模式" width="100%">
-
-### 7. 评测框架与消融实验
-
-<img src="./diagrams/07_eval_harness.png" alt="Academic-Data-Agent 评测框架与消融实验" width="100%">
-
-### 适用场景
-
-- 科研表格数据的自动清洗、统计分析、图表生成和报告撰写；
-- 需要保留完整 trace、图表、审稿记录和运行工件的分析任务；
-- 需要围绕历史分析结果继续追问、对比和复盘的项目；
-- 需要用公开 benchmark 和固定 eval baseline 验证 Agent 能力的实验型工作。
-
----
-
 ## 核心特点
 
 ### 1. 受控 ReAct 分析循环
