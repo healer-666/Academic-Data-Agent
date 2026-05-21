@@ -83,6 +83,7 @@ def build_run_summary_payload(result: AnalysisRunResult) -> dict[str, object]:
         "missing_artifacts": list(result.missing_artifacts),
         "lineage_json_path": result.lineage_json_path.as_posix() if result.lineage_json_path else "",
         "lineage_mermaid_path": result.lineage_mermaid_path.as_posix() if result.lineage_mermaid_path else "",
+        "skills": dict(result.skills_payload or {}),
         "failure_types": list(failure_types),
         "primary_failure_type": determine_primary_failure_type(result),
         "methods_used": list(result.methods_used),

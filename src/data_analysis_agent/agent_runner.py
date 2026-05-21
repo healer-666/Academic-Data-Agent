@@ -83,6 +83,8 @@ from .runtime_models import (
     VisualReviewRecord,
     WorkflowState,
 )
+from .skills import SkillContext, SkillValidationContext, resolve_analysis_skills
+from .skills.registry import build_skills_trace
 from .symbolic_rules import get_symbolic_rules, resolve_symbolic_profile
 from .tooling_service import (
     build_tool_registry as _build_tool_registry_service,
@@ -907,6 +909,7 @@ def _save_agent_trace(
     report_contract_check: ReportContractCheckResult | None = None,
     symbolic_profile: str = "full",
     lineage_payload: dict[str, object] | None = None,
+    skills_payload: dict[str, object] | None = None,
 ) -> Path:
     active_run_context = run_context or RunContext(
         run_id=run_dir.name,
@@ -959,6 +962,7 @@ def _save_agent_trace(
         symbolic_profile=symbolic_profile,
         symbolic_rules=get_symbolic_rules(),
         lineage_payload=lineage_payload,
+        skills_payload=skills_payload,
     )
 
 
@@ -1186,6 +1190,8 @@ def run_analysis(
     task_expectations: Iterable[str] = (),
     symbolic_profile: str = "full",
     lineage_contract: dict[str, Any] | None = None,
+    skill_profile: str = "auto",
+    enabled_skills: Iterable[str] | None = None,
 ) -> AnalysisRunResult:
     """Run the full data analysis workflow."""
 
@@ -1317,6 +1323,31 @@ def run_analysis(
         shape=data_context.shape,
         columns=data_context.columns,
         small_simple_dataset=small_simple_dataset,
+    )
+    skill_context = SkillContext(
+        task_type=resolved_task_type,
+        task_expectations=resolved_task_expectations,
+        skill_profile=skill_profile,
+        enabled_skills=(enabled_skills,) if isinstance(enabled_skills, str) else (tuple(enabled_skills) if enabled_skills is not None else None),
+        run_context=run_context,
+        data_context=data_context,
+        lineage_contract=lineage_contract,
+    )
+    active_skills = resolve_analysis_skills(skill_context)
+    skill_prompt_blocks = {
+        skill.name: skill.build_prompt_block(skill_context)
+        for skill in active_skills
+    }
+    skill_prompt_text = "\n".join(block for block in skill_prompt_blocks.values() if block.strip())
+    skills_payload: dict[str, object] = build_skills_trace(
+        skills=active_skills,
+        prompt_blocks=skill_prompt_blocks,
+    )
+    _emit_event(
+        event_recorder.emit,
+        "skills_resolved",
+        enabled_skills=[skill.name for skill in active_skills],
+        prompt_block_count=sum(1 for block in skill_prompt_blocks.values() if block.strip()),
     )
 
     # Stage 3: retrieve prior success and failure memory for this project scope.
@@ -1813,6 +1844,7 @@ def run_analysis(
                     part
                     for part in (
                         query,
+                        skill_prompt_text,
                         knowledge_bundle.render_for_prompt(),
                         data_context.context_text,
                         run_context_text,
@@ -1962,6 +1994,7 @@ def run_analysis(
             execution_audit=current_execution_audit,
             report_contract_check=current_report_contract,
             symbolic_profile=resolved_symbolic_profile,
+            skills_payload=skills_payload,
         )
         _accumulate_duration(timing_breakdown, "trace_persist_duration_ms", _elapsed_ms(trace_persist_started_at))
 
@@ -2631,6 +2664,35 @@ def run_analysis(
     except Exception as exc:
         lineage_payload = {"status": "failed", "error": str(exc)}
 
+    skill_validation_context = SkillValidationContext(
+        run_context=run_context,
+        report_markdown=report_markdown,
+        step_traces=step_traces_tuple,
+        telemetry=telemetry,
+        artifact_validation=artifact_validation,
+        lineage_payload=lineage_payload,
+        lineage_contract=lineage_contract,
+    )
+    skill_validation_payload: dict[str, object] = {}
+    for skill in active_skills:
+        try:
+            skill_validation_payload[skill.name] = skill.post_run_validate(skill_validation_context).to_trace_dict()
+        except Exception as exc:
+            skill_validation_payload[skill.name] = {
+                "name": skill.name,
+                "status": "failed",
+                "passed": False,
+                "warnings": [str(exc)],
+                "missing_artifacts": [],
+                "generated_outputs": [],
+                "details": {},
+            }
+    skills_payload = build_skills_trace(
+        skills=active_skills,
+        prompt_blocks=skill_prompt_blocks,
+        validation_results=skill_validation_payload,
+    )
+
     final_trace_persist_started_at = time.perf_counter()
     _save_agent_trace(
         trace_path=trace_path,
@@ -2669,6 +2731,7 @@ def run_analysis(
         report_contract_check=current_report_contract,
         symbolic_profile=resolved_symbolic_profile,
         lineage_payload=lineage_payload,
+        skills_payload=skills_payload,
     )
     _accumulate_duration(
         timing_breakdown,
@@ -2778,6 +2841,7 @@ def run_analysis(
         report_contract_issue_types=current_report_contract.issue_types,
         lineage_json_path=lineage_artifact.json_path if lineage_artifact else None,
         lineage_mermaid_path=lineage_artifact.mermaid_path if lineage_artifact else None,
+        skills_payload=skills_payload,
     )
     _save_run_summary_service(
         summary_path=run_dir / "run_summary.json",

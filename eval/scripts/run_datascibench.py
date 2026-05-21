@@ -75,6 +75,7 @@ class DataSciBenchRunConfig:
     task_timeout_seconds: int = 0
     contract_mode: str = "auto"
     block_pip_install: bool = False
+    resume_report_dir: Path | None = None
 
 
 def _resolve_path(path: str | Path, *, root: Path = PROJECT_ROOT) -> Path:
@@ -376,6 +377,7 @@ def build_summary(*, records: list[dict[str, Any]], config: DataSciBenchRunConfi
             "reports_dir": config.reports_dir.as_posix(),
             "output_root": config.output_root.as_posix(),
             "env_file": config.env_file.as_posix() if config.env_file else None,
+            "resume_report_dir": config.resume_report_dir.as_posix() if config.resume_report_dir else None,
         },
         "data_source": {
             "github": "https://github.com/THUDM/DataSciBench",
@@ -443,6 +445,23 @@ def _write_jsonl(path: Path, records: Iterable[dict[str, Any]]) -> None:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+def _read_jsonl_records(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    records: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        text = line.strip()
+        if not text:
+            continue
+        try:
+            item = json.loads(text)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(item, dict):
+            records.append(item)
+    return records
+
+
 def _run_single_task(
     *,
     runner: Callable[..., Any],
@@ -471,6 +490,7 @@ def _run_single_task(
             task_expectations=(),
             symbolic_profile=config.symbolic_profile,
             lineage_contract=lineage_contract,
+            skill_profile="auto",
         )
     finally:
         if config.block_pip_install:
@@ -497,6 +517,7 @@ def _task_result_to_payload(result: Any) -> dict[str, Any]:
         "execution_audit_passed": bool(getattr(result, "execution_audit_passed", False)),
         "lineage_json_path": _pathish_to_string(getattr(result, "lineage_json_path", "")),
         "lineage_mermaid_path": _pathish_to_string(getattr(result, "lineage_mermaid_path", "")),
+        "skills_payload": dict(getattr(result, "skills_payload", {}) or {}),
     }
 
 
@@ -565,7 +586,7 @@ def run_datascibench_sample(
         task_group=config.task_group,
     )
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    report_dir = config.reports_dir / timestamp
+    report_dir = config.resume_report_dir or (config.reports_dir / timestamp)
     report_dir.mkdir(parents=True, exist_ok=True)
     progress_log_path = report_dir / "progress.log"
     responses_path = report_dir / "responses.jsonl"
@@ -581,6 +602,7 @@ def run_datascibench_sample(
                 "reports_dir": config.reports_dir.as_posix(),
                 "output_root": config.output_root.as_posix(),
                 "env_file": config.env_file.as_posix() if config.env_file else None,
+                "resume_report_dir": config.resume_report_dir.as_posix() if config.resume_report_dir else None,
                 "selected_task_count": len(selected_tasks),
                 "selected_task_ids": [task.task_id for task in selected_tasks],
             },
@@ -590,9 +612,19 @@ def run_datascibench_sample(
         encoding="utf-8",
     )
 
-    records: list[dict[str, Any]] = []
-    _append_progress(progress_log_path, f"run_started selected_task_count={len(selected_tasks)}")
+    records: list[dict[str, Any]] = _read_jsonl_records(responses_path)
+    processed_ids = {str(record.get("id")) for record in records if str(record.get("id", "")).strip()}
+    if records:
+        _append_progress(
+            progress_log_path,
+            f"resume_started existing_record_count={len(records)} selected_task_count={len(selected_tasks)}",
+        )
+    else:
+        _append_progress(progress_log_path, f"run_started selected_task_count={len(selected_tasks)}")
     for index, task in enumerate(selected_tasks, start=1):
+        if task.task_id in processed_ids:
+            _append_progress(progress_log_path, f"[{index}/{len(selected_tasks)}] skipped_existing task={task.task_id}")
+            continue
         started_at = perf_counter()
         start_message = f"[{index}/{len(selected_tasks)}] DataSciBench task {task.task_id} | source={task.data_source_type}"
         print(start_message, flush=True)
@@ -662,6 +694,7 @@ def run_datascibench_sample(
                     "run_dir": result_run_dir,
                     "lineage_json_path": _pathish_to_string(getattr(result, "lineage_json_path", "")),
                     "lineage_mermaid_path": _pathish_to_string(getattr(result, "lineage_mermaid_path", "")),
+                    "skills_payload": dict(getattr(result, "skills_payload", {}) or {}),
                     "workflow_complete": bool(getattr(result, "workflow_complete", False)),
                     "execution_audit_passed": bool(getattr(result, "execution_audit_passed", False)),
                     "format_compliant": format_compliant,
@@ -682,6 +715,7 @@ def run_datascibench_sample(
         finally:
             record["duration_seconds"] = round(perf_counter() - started_at, 3)
             records.append(record)
+            processed_ids.add(task.task_id)
             _write_jsonl(responses_path, records)
             summary = build_summary(records=records, config=config, report_dir=report_dir)
             summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -724,6 +758,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--task-timeout-seconds", type=int, default=0)
     parser.add_argument("--contract-mode", choices=("auto", "off"), default="auto")
     parser.add_argument("--block-pip-install", action="store_true")
+    parser.add_argument("--resume-report-dir", default="")
     return parser
 
 
@@ -749,6 +784,7 @@ def main() -> int:
         task_timeout_seconds=max(0, args.task_timeout_seconds),
         contract_mode=args.contract_mode,
         block_pip_install=bool(args.block_pip_install),
+        resume_report_dir=_resolve_path(args.resume_report_dir).resolve() if args.resume_report_dir else None,
     )
     result = run_datascibench_sample(config)
     print(f"DataSciBench report directory: {result['report_dir']}")

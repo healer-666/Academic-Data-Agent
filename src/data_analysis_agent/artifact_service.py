@@ -190,6 +190,7 @@ def save_agent_trace(
     symbolic_profile: str = "full",
     symbolic_rules: tuple[SymbolicRule, ...] = (),
     lineage_payload: dict[str, object] | None = None,
+    skills_payload: dict[str, object] | None = None,
 ) -> Path:
     active_rag_payload = dict(rag_payload or {})
     active_memory_payload = dict(memory_payload or {})
@@ -294,6 +295,7 @@ def save_agent_trace(
             "rules": [rule.to_dict() for rule in symbolic_rules],
             "hard_verification_enabled": symbolic_profile == "full",
         },
+        "skills": dict(skills_payload or {"enabled": [], "prompt_blocks": {}, "validations": {}}),
         "lineage": dict(lineage_payload or {"status": "not_generated"}),
         "search_status": search_status,
         "review_status": review_status,

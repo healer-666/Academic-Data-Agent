@@ -18,6 +18,7 @@ class EventType(str, Enum):
     DOCUMENT_INGESTION_SKIPPED = "document_ingestion_skipped"
     DATA_CONTEXT_LOADING = "data_context_loading"
     DATA_CONTEXT_READY = "data_context_ready"
+    SKILLS_RESOLVED = "skills_resolved"
     KNOWLEDGE_INDEXING_STARTED = "knowledge_indexing_started"
     KNOWLEDGE_INDEXING_COMPLETED = "knowledge_indexing_completed"
     KNOWLEDGE_INDEXING_SKIPPED = "knowledge_indexing_skipped"

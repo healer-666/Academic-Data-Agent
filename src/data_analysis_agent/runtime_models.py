@@ -334,3 +334,4 @@ class AnalysisRunResult:
     report_contract_issue_types: tuple[str, ...] = ()
     lineage_json_path: Path | None = None
     lineage_mermaid_path: Path | None = None
+    skills_payload: dict[str, object] = field(default_factory=dict)

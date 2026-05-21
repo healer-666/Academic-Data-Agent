@@ -14,7 +14,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
+SRC_PATH = PROJECT_ROOT / "src"
+if str(SRC_PATH) not in sys.path:
+    sys.path.insert(0, str(SRC_PATH))
 
+from data_analysis_agent.skills.benchmark_run import (  # noqa: E402
+    CLEAN_ABLATION_PROFILES,
+    CLEAN_ABLATION_SEED,
+    CLEAN_ABLATION_TASK_TIMEOUT_SECONDS,
+    append_progress,
+)
 from prepare_datascibench_official_eval import OfficialEvalConfig, prepare_and_optionally_score  # noqa: E402
 from run_datascibench import (  # noqa: E402
     DataSciBenchRunConfig,
@@ -24,7 +33,7 @@ from run_datascibench import (  # noqa: E402
 )
 
 
-PROFILES = ("full", "prompt_only", "none")
+PROFILES = CLEAN_ABLATION_PROFILES
 
 
 def _resolve_path(path: str | Path) -> Path:
@@ -65,10 +74,21 @@ def select_weak_plus_controls(
 
 
 def _append_progress(path: Path, message: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().isoformat(timespec="seconds")
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(f"[{timestamp}] {message}\n")
+    append_progress(path, message)
+
+
+def _latest_profile_report_dir(report_dir: Path, profile: str) -> Path | None:
+    profile_root = report_dir / "runs" / profile
+    if not profile_root.exists():
+        return None
+    candidates = [
+        path
+        for path in profile_root.iterdir()
+        if path.is_dir() and (path / "responses.jsonl").exists()
+    ]
+    if not candidates:
+        return None
+    return sorted(candidates, key=lambda path: path.stat().st_mtime, reverse=True)[0]
 
 
 def _load_json(path: str | Path) -> dict[str, Any]:
@@ -288,13 +308,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-root", default="outputs")
     parser.add_argument("--env-file", default=".env")
     parser.add_argument("--python-executable", default=sys.executable)
-    parser.add_argument("--seed", type=int, default=20260519)
+    parser.add_argument("--seed", type=int, default=CLEAN_ABLATION_SEED)
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--run-official-eval", action="store_true")
     parser.add_argument("--max-steps", type=int, default=16)
-    parser.add_argument("--task-timeout-seconds", type=int, default=0)
+    parser.add_argument("--task-timeout-seconds", type=int, default=CLEAN_ABLATION_TASK_TIMEOUT_SECONDS)
     parser.add_argument("--timeout-seconds", type=int, default=600)
-    parser.add_argument("--block-pip-install", action="store_true")
+    parser.add_argument("--block-pip-install", action="store_true", default=True)
+    parser.add_argument("--resume-report-dir", default="")
     return parser
 
 
@@ -305,7 +326,11 @@ def main() -> int:
     selected = select_weak_plus_controls(tasks, seed=args.seed, smoke=bool(args.smoke))
     task_ids = [task.task_id for task in selected]
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    report_dir = (_resolve_path(args.reports_dir) / timestamp).resolve()
+    report_dir = (
+        _resolve_path(args.resume_report_dir)
+        if args.resume_report_dir
+        else (_resolve_path(args.reports_dir) / timestamp)
+    ).resolve()
     report_dir.mkdir(parents=True, exist_ok=True)
     progress_log = report_dir / "progress.log"
     profile_runs: dict[str, dict[str, Any]] = {}
@@ -334,6 +359,7 @@ def main() -> int:
             task_timeout_seconds=max(0, args.task_timeout_seconds),
             contract_mode="auto",
             block_pip_install=bool(args.block_pip_install),
+            resume_report_dir=_latest_profile_report_dir(report_dir, profile) if args.resume_report_dir else None,
         )
         run_result = run_datascibench_sample(run_config)
         profile_runs[profile] = run_result
