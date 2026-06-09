@@ -31,10 +31,6 @@ Academic-Data-Agent 是一个面向结构化表格数据的科研分析 Agent。
 | 🧪 Benchmark 评测 | 支持本地 DABench / DataSciBench 风格评测与消融 |
 | 💬 历史追问 | 基于历史运行结果继续提问，避免每次从零分析 |
 
-<p align="center">
-  <img src="diagrams/01_overall_architecture.png" width="760" alt="Academic-Data-Agent architecture">
-</p>
-
 <a id="features"></a>
 
 ## ✨ 核心能力
@@ -160,7 +156,7 @@ print(result.review_status)
 ├── src/data_analysis_agent/   # Core agent workflow
 ├── eval/                      # Evaluation scripts and tasks
 ├── docs/                      # Reports, notes, and benchmark writeups
-├── diagrams/                  # Architecture diagrams
+├── diagrams/                  # Diagram prompts and notes
 ├── data/                      # Example and external data
 ├── memory/                    # Stored experience and history
 ├── main.py                    # CLI entrypoint
