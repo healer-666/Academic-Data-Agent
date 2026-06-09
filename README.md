@@ -2,7 +2,7 @@
 
 # 🔬 Academic-Data-Agent
 
-**面向科研与学术场景的结构化数据分析 Agent 工作台**
+**An auditable data-analysis agent workspace for structured research datasets.**
 
 <p>
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white" />
@@ -12,37 +12,37 @@
   <img src="https://img.shields.io/badge/UI-Gradio-F97316?style=flat-square" />
 </p>
 
-🧭 [项目简介](#overview) · ✨ [核心能力](#features) · ⚡ [快速开始](#quick-start) · 📊 [评测结果](#evaluation) · 🗂️ [项目结构](#structure)
+🧭 [Overview](#overview) · ✨ [Features](#features) · ⚡ [Quick Start](#quick-start) · 📊 [Evaluation](#evaluation) · 🗂️ [Structure](#structure)
 
 </div>
 
 <a id="overview"></a>
 
-## 🔎 项目简介
+## 🔎 Overview
 
-Academic-Data-Agent 是一个面向结构化表格数据的科研分析 Agent。它不是通用聊天机器人，而是把一次数据分析拆成可执行、可追踪、可审计的工程流程：读取数据、清洗统计、调用 Python、生成图表和报告，并留下运行轨迹与审稿记录。
+Academic-Data-Agent is a research-oriented agent system for structured tabular data. It is not a general chat agent. It turns a data-analysis task into an inspectable workflow: read the dataset, build data context, run Python analysis, generate charts and reports, and save traces for later review.
 
-适合用来做：
+It is designed for:
 
-| 场景 | 说明 |
+| Use case | What it supports |
 |---|---|
-| 📈 学术数据分析 | 对 `csv / xls / xlsx` 表格做清洗、统计、绘图和报告 |
-| 🧾 可复盘分析 | 保存 trace、review、run summary、lineage 等运行证据 |
-| 🧪 Benchmark 评测 | 支持本地 DABench / DataSciBench 风格评测与消融 |
-| 💬 历史追问 | 基于历史运行结果继续提问，避免每次从零分析 |
+| 📈 Academic data analysis | Cleaning, statistics, plotting, and reporting for `csv / xls / xlsx` files |
+| 🧾 Reproducible runs | Saved traces, reviews, run summaries, and lineage records |
+| 🧪 Benchmark evaluation | Local DABench / DataSciBench-style evaluation and ablation workflows |
+| 💬 History Q&A | Follow-up questions over previous run artifacts without restarting from scratch |
 
 <a id="features"></a>
 
-## ✨ 核心能力
+## ✨ Features
 
-| 能力 | 作用 |
+| Feature | Purpose |
 |---|---|
-| 🧭 受控 ReAct 分析循环 | 通过 Python 工具完成清洗、统计、绘图和报告，而不是直接生成不可验证结论 |
-| 🛡️ 执行审计 | 检查正式分析是否基于全量清洗后数据，减少“只看摘要就下结论”的风险 |
-| 📑 Report Contract | 约束报告结构、统计解释、图表证据和输出 artifact |
-| 🔎 RAG 与 Memory | 检索外部资料、成功经验和失败教训，支持历史结果追问 |
-| 🕸️ Lineage DAG | 记录 raw data、cleaned data、Python steps、figures、reports 和 metrics 的关系 |
-| 📊 本地评测 | 提供 regression harness、DABench、DataSciBench 和 symbolic ablation 入口 |
+| 🧭 Controlled ReAct loop | Runs Python tools for cleaning, statistics, plotting, and reporting instead of producing unverifiable conclusions |
+| 🛡️ Execution audit | Checks whether formal analysis is based on the full cleaned dataset |
+| 📑 Report contract | Constrains report structure, statistical interpretation, chart evidence, and output artifacts |
+| 🔎 RAG and memory | Retrieves external references, successful patterns, and failure lessons |
+| 🕸️ Lineage DAG | Records relationships among raw data, cleaned data, Python steps, figures, reports, and metrics |
+| 📊 Local evaluation | Provides regression harness, DABench, DataSciBench, and symbolic ablation entry points |
 
 ## 🧭 Workflow
 
@@ -62,15 +62,15 @@ Save report, charts, trace, and lineage
 
 <a id="quick-start"></a>
 
-## ⚡ 快速开始
+## ⚡ Quick Start
 
-### 1. 安装依赖
+### 1. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. 配置 `.env`
+### 2. Configure `.env`
 
 ```env
 LLM_MODEL_ID=your_model
@@ -84,25 +84,25 @@ EMBEDDING_MODEL_ID=text-embedding-3-small
 EMBEDDING_API_KEY=your_embedding_key
 ```
 
-### 3. 命令行运行
+### 3. Run from CLI
 
 ```bash
 python main.py --data data/simple_data.xlsx
 ```
 
-### 4. 启动 Web 工作台
+### 4. Launch the Web workspace
 
 ```bash
 python gradio_app.py
 ```
 
-## 🧰 常用参数
+## 🧰 Common Options
 
-| 参数 | 说明 |
+| Option | Meaning |
 |---|---|
-| `--data` | 输入表格路径 |
-| `--output-dir` | 输出目录 |
-| `--query` | 用户分析问题 |
+| `--data` | Input table path |
+| `--output-dir` | Output directory |
+| `--query` | User analysis question |
 | `--quality-mode` | `draft / standard / publication` |
 | `--latency-mode` | `auto / quality / fast` |
 | `--vision-review-mode` | `off / auto / on` |
@@ -128,11 +128,11 @@ print(result.review_status)
 
 <a id="evaluation"></a>
 
-## 📊 评测结果
+## 📊 Evaluation
 
-> 说明：以下结果为 local reproduction，不代表官方 leaderboard 提交、官方排名或 SOTA 声明。
+> These are local reproduction results, not official leaderboard submissions, official rankings, or SOTA claims.
 
-| Benchmark | 设置 | 指标 | 结果 |
+| Benchmark | Setting | Metric | Result |
 |---|---|---|---:|
 | Local regression `seed_v5` | 10 tasks | accepted | 10/10 |
 | DABench closed-form dev | 257 tasks | official-style accuracy | 85.60%-85.94% |
@@ -140,7 +140,7 @@ print(result.review_status)
 | DataSciBench full local reproduction | 222 tasks | official CR | 66.27% |
 | DataSciBench clean ablation `full` | 60 tasks | official CR | 53.12% |
 
-更多细节：
+Detailed reports:
 
 - [DABench public benchmark report](./docs/dabench_public_benchmark_report.md)
 - [DataSciBench formal comparison](./docs/datascibench_formal_comparison_local_reproduction.md)
@@ -149,7 +149,7 @@ print(result.review_status)
 
 <a id="structure"></a>
 
-## 🗂️ 项目结构
+## 🗂️ Structure
 
 ```text
 .
@@ -163,11 +163,11 @@ print(result.review_status)
 └── gradio_app.py              # Web workspace
 ```
 
-## 📚 相关文档
+## 📚 Documentation
 
-- [核心代码学习手册](./docs/核心代码学习手册.md)
-- [项目主链路拆解](./docs/项目主链路拆解.md)
-- [项目改进路线图](./docs/项目改进路线图.md)
+- [Agent runner reading map](./docs/agent_runner_reading_map.md)
+- [DABench public benchmark report](./docs/dabench_public_benchmark_report.md)
+- [DataSciBench formal comparison](./docs/datascibench_formal_comparison_local_reproduction.md)
 
 ---
 
