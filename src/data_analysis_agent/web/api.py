@@ -172,6 +172,8 @@ def format_event_line(event_type: str, payload: dict[str, object]) -> str:
         if isinstance(shape, (list, tuple)) and len(shape) >= 2:
             rows, cols = shape[0], shape[1]
         return f"数据上下文已准备：{rows} 行 x {cols} 列"
+    if event_type == "search_planning_completed":
+        return str(payload.get("reason") or "联网搜索需求已评估。")
     if event_type == "knowledge_indexing_started":
         return f"正在写入参考资料：{payload.get('file_count', 0)} 个文件"
     if event_type == "knowledge_indexing_completed":
@@ -665,6 +667,9 @@ def _serialize_analysis_result(result: object, bundle_path: Path | None = None) 
         "totalDurationMs": getattr(result, "total_duration_ms", 0),
         "methodsUsed": list(getattr(result, "methods_used", ()) or ()),
         "toolsUsed": list(getattr(result, "tools_used", ()) or ()),
+        "searchStatus": getattr(result, "search_status", "not_used"),
+        "searchNotes": getattr(result, "search_notes", ""),
+        "searchSources": [dict(source) for source in (getattr(result, "search_sources", ()) or ())],
         "workflowWarnings": list(getattr(result, "workflow_warnings", ()) or ()),
         "executionAudit": {
             "status": getattr(result, "execution_audit_status", "not_checked"),

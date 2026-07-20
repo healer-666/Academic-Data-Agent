@@ -282,6 +282,7 @@ class AnalysisRunResult:
     review_critique: str
     review_log_paths: tuple[Path, ...]
     symbolic_profile: str = "full"
+    search_sources: tuple[dict[str, str], ...] = ()
     input_kind: str = "tabular"
     document_ingestion_status: str = "not_needed"
     document_ingestion_summary: str = ""

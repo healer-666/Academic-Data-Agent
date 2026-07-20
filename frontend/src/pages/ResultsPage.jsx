@@ -1,10 +1,48 @@
 import { useEffect, useMemo, useRef } from "react";
-import { Activity, Clock3, Download, Search, ShieldCheck } from "lucide-react";
+import { Activity, Clock3, Download, ExternalLink, Globe2, Search, ShieldCheck, WifiOff } from "lucide-react";
 import { toAbsoluteFileUrl } from "../api";
 import InteractiveReportView from "../components/InteractiveReportView";
 import MarkdownView from "../components/MarkdownView";
 import { StatCard } from "../components/WorkspacePrimitives";
 import { compactStatus, formatBytes, formatDuration } from "../utils/formatters";
+
+const SEARCH_STATUS_LABELS = {
+  used: "已使用联网资料",
+  attempted: "已尝试搜索",
+  unavailable: "搜索不可用",
+  not_used: "本次无需搜索",
+};
+
+function SearchStatusPanel({ result }) {
+  const sources = result.searchSources || [];
+  const unavailable = result.searchStatus === "unavailable";
+  const Icon = unavailable ? WifiOff : Globe2;
+  return (
+    <section className={`panel search-status-panel search-${result.searchStatus || "not_used"}`}>
+      <header>
+        <span className="search-status-icon"><Icon size={19} /></span>
+        <div>
+          <small>联网搜索</small>
+          <strong>{SEARCH_STATUS_LABELS[result.searchStatus] || compactStatus(result.searchStatus)}</strong>
+          <p>{result.searchNotes || "系统会根据任务内容自动判断是否需要外部资料。"}</p>
+        </div>
+      </header>
+      {sources.length > 0 && (
+        <div className="search-source-list">
+          {sources.map((source) => (
+            <a href={source.url} target="_blank" rel="noreferrer" key={source.url}>
+              <span>
+                <strong>{source.title || source.url}</strong>
+                {source.snippet && <small>{source.snippet}</small>}
+              </span>
+              <ExternalLink size={15} />
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
 
 function ResultsView({ status, logs, result, outputDir }) {
   const logEndRef = useRef(null);
@@ -18,6 +56,7 @@ function ResultsView({ status, logs, result, outputDir }) {
       ["运行状态", status.message || "等待任务开始", Activity],
       ["领域识别", result?.detectedDomain || "暂无", Search],
       ["审阅状态", result?.reviewStatus || "暂无", ShieldCheck],
+      ["联网搜索", result ? (SEARCH_STATUS_LABELS[result.searchStatus] || "已评估") : "暂无", Globe2],
       ["总耗时", result ? formatDuration(result.totalDurationMs) : "暂无", Clock3],
     ],
     [result, status],
@@ -53,6 +92,7 @@ function ResultsView({ status, logs, result, outputDir }) {
               <span>输出深度：{compactStatus(result.qualityMode)}</span>
               <span>RAG：{compactStatus(result.ragStatus)}，命中 {result.ragMatchCount || 0}</span>
               <span>历史经验写回：{compactStatus(result.memoryWritebackStatus)}</span>
+              <span>联网搜索：{SEARCH_STATUS_LABELS[result.searchStatus] || compactStatus(result.searchStatus)}</span>
               <span>工作流：{result.workflowComplete ? "已完成" : "有提醒"}</span>
             </div>
           ) : (
@@ -60,6 +100,8 @@ function ResultsView({ status, logs, result, outputDir }) {
           )}
         </div>
       </div>
+
+      {result && <SearchStatusPanel result={result} />}
 
       {result && (
         <InteractiveReportView

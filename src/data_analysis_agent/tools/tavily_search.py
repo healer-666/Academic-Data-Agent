@@ -13,7 +13,8 @@ from ..tool_protocol import ToolErrorCode, ToolResponse
 class TavilySearchTool(Tool):
     """Research-oriented Tavily search wrapper with graceful degradation."""
 
-    def __init__(self):
+    def __init__(self, api_key: str | None = None):
+        self._api_key = str(api_key or "").strip()
         super().__init__(
             name="TavilySearchTool",
             description=(
@@ -31,7 +32,7 @@ class TavilySearchTool(Tool):
                 message="TavilySearchTool expected a non-empty 'query' string.",
             )
 
-        api_key = os.getenv("TAVILY_API_KEY")
+        api_key = self._api_key or os.getenv("TAVILY_API_KEY")
         if not api_key:
             return ToolResponse.partial(
                 text="No Tavily search credential is configured. Skip online search and proceed with local analysis only.",
@@ -52,8 +53,9 @@ class TavilySearchTool(Tool):
             client = TavilyClient(api_key=api_key)
             response = client.search(query=query, search_depth="advanced")
         except Exception as exc:
+            safe_error = str(exc).replace(api_key, "[REDACTED]")
             return ToolResponse.partial(
-                text=f"Tavily search is temporarily unavailable ({exc}). Skip online search and proceed with local analysis only.",
+                text=f"Tavily search is temporarily unavailable ({safe_error}). Skip online search and proceed with local analysis only.",
                 data={"query": query, "results": []},
                 context={"query": query},
             )

@@ -2876,6 +2876,115 @@ button:disabled {
   font-size: 0.84rem;
 }
 
+.search-status-panel {
+  display: grid;
+  gap: 15px;
+  border-color: #cfe1f2;
+  background: #f8fbff;
+}
+
+.search-status-panel.search-used {
+  border-color: #b9e4d1;
+  background: #f3fcf8;
+}
+
+.search-status-panel.search-unavailable {
+  border-color: #fed7aa;
+  background: #fffaf3;
+}
+
+.search-status-panel > header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.search-status-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  color: #1f5c99;
+  background: #e5f0fa;
+}
+
+.search-unavailable .search-status-icon {
+  color: #b45309;
+  background: #ffedd5;
+}
+
+.search-status-panel small,
+.search-status-panel strong {
+  display: block;
+}
+
+.search-status-panel > header small {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.search-status-panel > header strong {
+  margin: 2px 0 4px;
+  color: #172033;
+}
+
+.search-status-panel p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.55;
+}
+
+.search-source-list {
+  display: grid;
+  gap: 8px;
+  padding-top: 13px;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.search-source-list a {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 11px 12px;
+  border: 1px solid rgba(177, 207, 235, 0.58);
+  border-radius: 10px;
+  color: #1f5c99;
+  background: #fff;
+  text-decoration: none;
+}
+
+.search-source-list a:hover {
+  border-color: #8cb7de;
+  background: #fbfdff;
+}
+
+.search-source-list a > span {
+  min-width: 0;
+}
+
+.search-source-list a strong {
+  overflow-wrap: anywhere;
+}
+
+.search-source-list a small {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-top: 4px;
+  color: #64748b;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.search-source-list a > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
 @media (max-width: 720px) {
   .model-settings-page {
     padding: 24px 14px 36px;

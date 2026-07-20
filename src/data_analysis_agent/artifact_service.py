@@ -190,6 +190,9 @@ def save_agent_trace(
     symbolic_profile: str = "full",
     symbolic_rules: tuple[SymbolicRule, ...] = (),
     lineage_payload: dict[str, object] | None = None,
+    search_requested: bool = False,
+    search_configured: bool = False,
+    search_sources: tuple[dict[str, str], ...] = (),
 ) -> Path:
     active_rag_payload = dict(rag_payload or {})
     active_memory_payload = dict(memory_payload or {})
@@ -214,6 +217,8 @@ def save_agent_trace(
             "document_ingestion_mode": run_context.document_ingestion_mode,
             "review_enabled": review_enabled,
             "search_enabled": search_enabled,
+            "search_requested": search_requested,
+            "search_configured": search_configured,
             "fast_path_enabled": fast_path_enabled,
             "small_simple_dataset": small_simple_dataset,
             "vision_configured": vision_configured,
@@ -296,6 +301,14 @@ def save_agent_trace(
         },
         "lineage": dict(lineage_payload or {"status": "not_generated"}),
         "search_status": search_status,
+        "search": {
+            "requested": search_requested,
+            "configured": search_configured,
+            "enabled": search_enabled,
+            "status": search_status,
+            "notes": search_notes,
+            "sources": [dict(source) for source in search_sources],
+        },
         "review_status": review_status,
         "timing_breakdown": dict(timing_breakdown),
         "rag": active_rag_payload,
