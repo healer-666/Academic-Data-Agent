@@ -25,3 +25,5 @@ data/external/dabench/
 data/external/datascibench/
 data/external/datascibench_hf/
 data/external/datascibench_official/
+data/external/cumcm/raw/
+data/external/cumcm/extracted/
