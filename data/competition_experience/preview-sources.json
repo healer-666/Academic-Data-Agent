@@ -1,0 +1,9 @@
+[
+  {
+    "id": "representative-method-fixtures",
+    "title": "Representative modeling-method fixtures for framework validation",
+    "kind": "synthetic_fixture",
+    "license": "project-test-fixture",
+    "uri": "docs/modeling-skills.md"
+  }
+]

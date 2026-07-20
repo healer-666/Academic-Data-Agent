@@ -12,6 +12,7 @@ tool-output/debug-temp/
 outputs/
 eval/reports/
 memory/knowledge_base/
+memory/competition_experience_library/
 tool-output/
 logs/
 Co-creation-projects/

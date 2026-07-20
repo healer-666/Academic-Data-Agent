@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "library": {
+    "id": "academic-data-agent-competition-experience",
+    "version": "0.1.0-preview",
+    "content_status": "preview",
+    "published_at": "2026-07-20T12:10:55Z"
+  },
+  "sources": [
+    {
+      "id": "representative-method-fixtures",
+      "title": "Representative modeling-method fixtures for framework validation",
+      "kind": "synthetic_fixture",
+      "license": "project-test-fixture",
+      "uri": "docs/modeling-skills.md"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "indexes/keyword_index.json",
+      "kind": "keyword_index",
+      "sha256": "5f848bcacae71173c3d809b77ac291a5292ed1fac594132db8eecda6ed7adf11",
+      "size_bytes": 19
+    },
+    {
+      "path": "NOTICE.md",
+      "kind": "metadata",
+      "sha256": "f919df543e96efdc1fae3b30b5c37258bbabd9bcc23a8818e7f5fc6b2319b6fb",
+      "size_bytes": 307
+    },
+    {
+      "path": "skills/catalog.json",
+      "kind": "modeling_skills",
+      "sha256": "b0b0f01ba0f494e7d6f09bfa4f20c0ba30f5503600f807c4af7104f5ad02ed17",
+      "size_bytes": 12757
+    }
+  ]
+}
