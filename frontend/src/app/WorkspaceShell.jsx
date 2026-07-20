@@ -5,6 +5,7 @@ import HistoryView from "../pages/HistoryPage";
 import KnowledgeView from "../pages/KnowledgePage";
 import LineageView from "../pages/LineagePage";
 import ResultsView from "../pages/ResultsPage";
+import ModelSettingsView from "../pages/ModelSettingsPage";
 import { ViewLoading } from "../components/WorkspacePrimitives";
 
 export default function WorkspaceShell({ controller }) {
@@ -88,18 +89,20 @@ export default function WorkspaceShell({ controller }) {
             </span>
             <div>
               <strong>{activeItem.label}</strong>
-              <span>{form.outputDir || "outputs"}</span>
+              <span>{activeView === "settings" ? "当前服务会话" : (form.outputDir || "outputs")}</span>
             </div>
           </div>
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={() => refreshWorkspace()}
-            disabled={workspaceLoading}
-          >
-            <RefreshCw className={workspaceLoading ? "spin" : ""} size={16} />
-            {workspaceLoading ? "刷新中" : "刷新"}
-          </button>
+          {activeView !== "settings" && (
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => refreshWorkspace()}
+              disabled={workspaceLoading}
+            >
+              <RefreshCw className={workspaceLoading ? "spin" : ""} size={16} />
+              {workspaceLoading ? "刷新中" : "刷新"}
+            </button>
+          )}
         </header>
 
         {workspaceError && <div className="error-banner">{workspaceError}</div>}
@@ -156,6 +159,7 @@ export default function WorkspaceShell({ controller }) {
               <KnowledgeView knowledgeBase={workspace?.knowledgeBase} />
             )
           )}
+          {activeView === "settings" && <ModelSettingsView />}
         </div>
       </main>
     </div>

@@ -19,12 +19,19 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 
 from ..agent_runner import run_analysis
 from ..history_qa import answer_history_question
 from ..memory import derive_memory_scope_key
 from .history import RunHistoryEntry, find_run_history, scan_run_history
+from .model_settings import (
+    ModelSettingsInput,
+    ModelSettingsStore,
+    redact_sensitive_text,
+    test_model_connection,
+    validate_model_settings,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -87,6 +94,21 @@ class HistoryQuestionRequest(BaseModel):
     mode: str = "single"
     outputDir: str = DEFAULT_OUTPUT_DIR
     envFile: str = ""
+
+
+class ModelSettingsRequest(BaseModel):
+    modelId: str
+    baseUrl: str
+    apiKey: SecretStr
+    timeout: int = 120
+
+    def to_settings_input(self) -> ModelSettingsInput:
+        return ModelSettingsInput(
+            model_id=self.modelId,
+            base_url=self.baseUrl,
+            api_key=self.apiKey.get_secret_value(),
+            timeout=self.timeout,
+        )
 
 
 def _json_default(value: object) -> object:
@@ -682,6 +704,7 @@ async def _save_upload(upload: UploadFile, destination: Path, allowed_suffixes: 
 def create_app(project_root: Path | None = None) -> FastAPI:
     root = (project_root or PROJECT_ROOT).resolve()
     app = FastAPI(title="Academic Data Agent React API", version="1.0.0")
+    app.state.model_settings = ModelSettingsStore(root / ".env")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -703,6 +726,45 @@ def create_app(project_root: Path | None = None) -> FastAPI:
     @app.get("/api/workspace")
     async def workspace(output_dir: str = Query(DEFAULT_OUTPUT_DIR)) -> dict[str, object]:
         return _serialize_workspace(output_dir or DEFAULT_OUTPUT_DIR)
+
+    @app.get("/api/settings/model")
+    async def model_settings_status() -> dict[str, object]:
+        return app.state.model_settings.public_status()
+
+    @app.put("/api/settings/model")
+    async def save_model_settings(payload: ModelSettingsRequest) -> dict[str, object]:
+        try:
+            return app.state.model_settings.save(payload.to_settings_input())
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from None
+
+    @app.delete("/api/settings/model")
+    async def clear_model_settings() -> dict[str, object]:
+        return app.state.model_settings.clear()
+
+    @app.post("/api/settings/model/test")
+    async def test_saved_model_connection(payload: ModelSettingsRequest | None = None) -> dict[str, object]:
+        config = None
+        try:
+            if payload is not None:
+                config = validate_model_settings(payload.to_settings_input(), env_file=root / ".env")
+            else:
+                config = app.state.model_settings.runtime_config()
+                if config is None:
+                    raise ValueError("请先填写模型配置，或保存后再测试连接。")
+            message = await asyncio.to_thread(test_model_connection, config)
+        except ValueError as exc:
+            message = str(exc)
+            if config is not None:
+                app.state.model_settings.record_connection_result(
+                    config,
+                    succeeded=False,
+                    message=message,
+                )
+            raise HTTPException(status_code=400, detail=message) from None
+
+        app.state.model_settings.record_connection_result(config, succeeded=True, message=message)
+        return {"ok": True, "message": message}
 
     @app.get("/api/history/runs")
     async def history_runs(
@@ -741,6 +803,7 @@ def create_app(project_root: Path | None = None) -> FastAPI:
             mode=payload.mode,
             outputs_root=payload.outputDir or DEFAULT_OUTPUT_DIR,
             env_file=payload.envFile or None,
+            runtime_config_override=app.state.model_settings.runtime_config(payload.envFile or None),
         )
         return {
             "answerMarkdown": result.answer_markdown,
@@ -778,6 +841,7 @@ def create_app(project_root: Path | None = None) -> FastAPI:
         memory_scope_label: str = Form(""),
         knowledge_uploads: list[UploadFile] | None = File(None),
     ) -> StreamingResponse:
+        runtime_config_override = app.state.model_settings.runtime_config(env_file or None)
         web_strategy = resolve_web_analysis_strategy(scenario)
         if web_strategy:
             runtime_strategy = {
@@ -870,15 +934,17 @@ def create_app(project_root: Path | None = None) -> FastAPI:
                         memory_scope_key=memory_scope_key,
                         task_type=runtime_strategy["task_type"],
                         task_expectations=runtime_strategy["task_expectations"],
+                        runtime_config_override=runtime_config_override,
                     )
                     event_queue.put(("result", result))
                 except Exception as exc:  # pragma: no cover - covered through API tests with mock
+                    api_key = runtime_config_override.api_key if runtime_config_override else ""
                     event_queue.put(
                         (
                             "error",
                             {
-                                "message": str(exc),
-                                "traceback": traceback.format_exc(),
+                                "message": redact_sensitive_text(exc, api_key),
+                                "traceback": redact_sensitive_text(traceback.format_exc(), api_key),
                             },
                         )
                     )

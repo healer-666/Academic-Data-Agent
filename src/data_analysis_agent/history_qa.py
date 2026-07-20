@@ -136,6 +136,7 @@ def answer_history_question(
     outputs_root: str | Path = "outputs",
     env_file: str | Path | None = None,
     memory_base_dir: str | Path | None = None,
+    runtime_config_override: RuntimeConfig | None = None,
 ) -> HistoryQaAnswerResult:
     retrieval = retrieve_history_context(
         query,
@@ -159,14 +160,18 @@ def answer_history_question(
         )
 
     warnings: list[str] = []
+    runtime_config = runtime_config_override
     try:
-        runtime_config: RuntimeConfig = load_runtime_config(env_file=env_file)
+        runtime_config = runtime_config or load_runtime_config(env_file=env_file)
         llm = build_llm(runtime_config)
         prompt = _build_history_qa_prompt(query=query, retrieval=retrieval)
         raw_answer = str(llm.invoke([{"role": "user", "content": prompt}])).strip()
         answer_markdown = _normalize_answer(raw_answer, retrieval)
     except Exception as exc:
-        warnings.append(f"LLM unavailable for history QA, used deterministic fallback: {exc}")
+        safe_error = str(exc)
+        if runtime_config is not None and runtime_config.api_key:
+            safe_error = safe_error.replace(runtime_config.api_key, "[REDACTED]")
+        warnings.append(f"LLM unavailable for history QA, used deterministic fallback: {safe_error}")
         answer_markdown = _build_fallback_answer(query=query, retrieval=retrieval)
 
     sources = tuple(_build_source_line(item) for item in retrieval.slices)

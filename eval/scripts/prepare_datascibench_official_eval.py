@@ -459,7 +459,7 @@ def _run_command(command: list[str], *, cwd: Path, timeout_seconds: int) -> subp
         metagpt_config.write_text(
             "llm:\n"
             "  api_type: openai\n"
-            "  api_key: sk-dummy-for-official-evaluator-import\n"
+            "  api_key: example-api-key\n"
             "  model: gpt-4o-mini\n",
             encoding="utf-8",
         )
