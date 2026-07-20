@@ -1,0 +1,33 @@
+schema_version: "1.0"
+case:
+  id: competition-2024-a
+  competition: Competition name
+  year: 2024
+  problem_number: A
+  title: Official problem title
+  locale: zh-CN
+
+# Paths are resolved relative to this manifest and stay in the private
+# maintainer environment. They are never copied into a published card.
+sources:
+  - id: problem
+    role: problem_statement
+    title: Official problem statement
+    path: private/problem.pdf
+    url: https://official.example/problem
+    license: citation-only
+    distribution: metadata_only
+  - id: data
+    role: dataset
+    title: Official problem dataset
+    path: private/data.xlsx
+    url: https://official.example/data
+    license: competition-terms
+    distribution: metadata_only
+  - id: paper
+    role: paper
+    title: High-quality reviewed solution
+    path: private/paper.pdf
+    url: https://publisher.example/paper
+    license: citation-only
+    distribution: metadata_only
