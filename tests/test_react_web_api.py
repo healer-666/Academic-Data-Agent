@@ -206,6 +206,16 @@ class ReactWebApiTests(unittest.TestCase):
             total_duration_ms=1200,
             methods_used=("descriptive statistics",),
             tools_used=("PythonInterpreterTool",),
+            search_status="used",
+            search_notes="已使用外部资料补充背景。",
+            search_sources=(
+                {
+                    "title": "Example source",
+                    "url": "https://example.test/source",
+                    "snippet": "Background context.",
+                    "query": "demo",
+                },
+            ),
             workflow_warnings=(),
             execution_audit_status="passed",
             execution_audit_passed=True,
@@ -418,6 +428,8 @@ class ReactWebApiTests(unittest.TestCase):
         self.assertIn('"claim_support_rate": 1.0', payload)
         self.assertIn('"interactiveReportAvailable": true', payload)
         self.assertIn('"figureCount": 1', payload)
+        self.assertIn('"searchStatus": "used"', payload)
+        self.assertIn("https://example.test/source", payload)
 
     def test_general_and_modeling_scenarios_submit_end_to_end(self):
         expectations = {

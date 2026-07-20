@@ -85,7 +85,9 @@ from .runtime_models import (
 )
 from .symbolic_rules import get_symbolic_rules, resolve_symbolic_profile
 from .tooling_service import (
+    append_search_disclosure as _append_search_disclosure_service,
     build_tool_registry as _build_tool_registry_service,
+    collect_search_sources as _collect_search_sources_service,
     collect_tools_used as _collect_tools_used_service,
     determine_search_status as _determine_search_status_service,
     execute_tool_call,
@@ -253,9 +255,9 @@ def build_plaintext_event_handler() -> EventHandler:
     return handle_event
 
 
-def build_tool_registry(*, enable_search: bool = True) -> ToolRegistry:
+def build_tool_registry(*, enable_search: bool = True, tavily_api_key: str | None = None) -> ToolRegistry:
     """Create the tool registry for the analysis agent."""
-    return _build_tool_registry_service(enable_search=enable_search)
+    return _build_tool_registry_service(enable_search=enable_search, tavily_api_key=tavily_api_key)
 
 
 def _elapsed_ms(start_time: float) -> int:
@@ -500,7 +502,43 @@ _SEARCH_SIGNAL_KEYWORDS = (
     "染色体",
     "宏观",
     "统计口径",
+    "latest",
+    "current",
+    "literature",
+    "reference",
+    "citation",
+    "benchmark",
+    "standard",
+    "policy",
+    "definition",
+    "external source",
+    "最新",
+    "现行",
+    "文献",
+    "参考",
+    "引用",
+    "基准",
+    "标准",
+    "政策",
+    "定义",
+    "外部资料",
+    "公开数据",
 )
+
+
+def _should_request_search(
+    *,
+    data_context: DataContextSummary,
+    query: str,
+    task_type: str = "",
+) -> bool:
+    if str(task_type or "").strip() == "mathematical_modeling":
+        return True
+    searchable_text = " ".join([query, *data_context.columns])
+    lowered = searchable_text.lower()
+    if any(keyword in lowered for keyword in _SEARCH_SIGNAL_KEYWORDS):
+        return True
+    return bool(re.search(r"\b[A-Z]{2,}[0-9A-Z/_-]*\b", searchable_text))
 
 
 def _should_enable_search(
@@ -510,19 +548,14 @@ def _should_enable_search(
     query: str,
     quality_mode: str,
     latency_mode: str,
+    task_type: str = "",
 ) -> bool:
-    if not runtime_config.tavily_api_key:
-        return False
-    if latency_mode == "quality":
-        return True
-
-    searchable_text = " ".join([query, *data_context.columns])
-    lowered = searchable_text.lower()
-    if any(keyword in lowered for keyword in _SEARCH_SIGNAL_KEYWORDS):
-        return True
-    if re.search(r"\b[A-Z]{2,}[0-9A-Z/_-]*\b", searchable_text):
-        return True
-    return False
+    del quality_mode, latency_mode
+    return bool(runtime_config.tavily_api_key) and _should_request_search(
+        data_context=data_context,
+        query=query,
+        task_type=task_type,
+    )
 
 
 def _extract_first_json_object(text: str) -> str:
@@ -637,8 +670,23 @@ def _build_step_summary(tool_name: str, decision: str, tool_status: str, observa
     return summary
 
 
-def _determine_search_status(step_traces: tuple[AgentStepTrace, ...], telemetry: ReportTelemetry) -> tuple[str, str]:
-    return _determine_search_status_service(step_traces, telemetry)
+def _determine_search_status(
+    step_traces: tuple[AgentStepTrace, ...],
+    telemetry: ReportTelemetry,
+    *,
+    search_requested: bool = False,
+    search_configured: bool = True,
+) -> tuple[str, str]:
+    return _determine_search_status_service(
+        step_traces,
+        telemetry,
+        search_requested=search_requested,
+        search_configured=search_configured,
+    )
+
+
+def _collect_search_sources(step_traces: tuple[AgentStepTrace, ...]) -> tuple[dict[str, str], ...]:
+    return _collect_search_sources_service(step_traces)
 
 
 def _collect_tools_used(step_traces: tuple[AgentStepTrace, ...], telemetry: ReportTelemetry) -> tuple[str, ...]:
@@ -907,6 +955,9 @@ def _save_agent_trace(
     report_contract_check: ReportContractCheckResult | None = None,
     symbolic_profile: str = "full",
     lineage_payload: dict[str, object] | None = None,
+    search_requested: bool = False,
+    search_configured: bool = False,
+    search_sources: tuple[dict[str, str], ...] = (),
 ) -> Path:
     active_run_context = run_context or RunContext(
         run_id=run_dir.name,
@@ -959,6 +1010,9 @@ def _save_agent_trace(
         symbolic_profile=symbolic_profile,
         symbolic_rules=get_symbolic_rules(),
         lineage_payload=lineage_payload,
+        search_requested=search_requested,
+        search_configured=search_configured,
+        search_sources=search_sources,
     )
 
 
@@ -1304,12 +1358,19 @@ def run_analysis(
         latency_mode=resolved_latency_mode,
         small_simple_dataset=small_simple_dataset,
     )
+    search_requested = _should_request_search(
+        data_context=data_context,
+        query=query,
+        task_type=resolved_task_type,
+    )
+    search_configured = bool(runtime_config.tavily_api_key)
     search_enabled = _should_enable_search(
         runtime_config=runtime_config,
         data_context=data_context,
         query=query,
         quality_mode=resolved_quality_mode,
         latency_mode=resolved_latency_mode,
+        task_type=resolved_task_type,
     )
     _emit_event(
         event_recorder.emit,
@@ -1318,6 +1379,21 @@ def run_analysis(
         shape=data_context.shape,
         columns=data_context.columns,
         small_simple_dataset=small_simple_dataset,
+    )
+    _emit_event(
+        event_recorder.emit,
+        "search_planning_completed",
+        requested=search_requested,
+        configured=search_configured,
+        enabled=search_enabled,
+        status=("available" if search_enabled else "unavailable" if search_requested else "not_needed"),
+        reason=(
+            "任务可能需要外部背景资料，联网搜索已启用。"
+            if search_enabled
+            else "任务需要外部资料，但未配置 Tavily；将继续本地分析。"
+            if search_requested
+            else "当前任务无需外部资料。"
+        ),
     )
 
     # Stage 3: retrieve prior success and failure memory for this project scope.
@@ -1738,7 +1814,10 @@ def run_analysis(
             )
 
     # Stage 5: prepare tools and run the analyst ReAct loop, with optional revisions.
-    tool_registry = build_tool_registry(enable_search=search_enabled)
+    tool_registry = build_tool_registry(
+        enable_search=search_enabled,
+        tavily_api_key=runtime_config.tavily_api_key,
+    )
     _emit_event(
         event_recorder.emit,
         "tool_registry_ready",
@@ -1757,8 +1836,13 @@ def run_analysis(
     raw_result = ""
     report_markdown = ""
     telemetry = ReportTelemetry()
-    search_status = "not_used"
-    search_notes = "No online knowledge retrieval was triggered."
+    search_status = "unavailable" if search_requested and not search_configured else "not_used"
+    search_notes = (
+        "任务需要外部资料，但未配置 Tavily 搜索服务；已继续完成本地分析。"
+        if search_status == "unavailable"
+        else "当前任务不需要外部资料，未触发联网搜索。"
+    )
+    search_sources: tuple[dict[str, str], ...] = ()
     tools_used: tuple[str, ...] = ()
     artifact_validation = ArtifactValidationResult(
         workflow_complete=False,
@@ -1849,6 +1933,14 @@ def run_analysis(
         extraction = extract_report_and_telemetry(raw_result)
         report_markdown = extraction.report_markdown
         telemetry = extraction.telemetry
+        step_traces_tuple = tuple(all_step_traces)
+        search_status, search_notes = _determine_search_status(
+            step_traces_tuple,
+            telemetry,
+            search_requested=search_requested,
+            search_configured=search_configured,
+        )
+        search_sources = _collect_search_sources(step_traces_tuple)
         evidence_coverage = analyze_evidence_coverage(
             report_markdown,
             evidence_register=current_evidence_register,
@@ -1863,6 +1955,12 @@ def run_analysis(
         rag_payload["evidence_coverage_status"] = rag_evidence_coverage_status
         rag_payload["uncited_sections_detected"] = list(rag_uncited_sections_detected)
         rag_payload["invalid_citation_labels"] = list(evidence_coverage.invalid_citation_labels)
+        report_markdown = _append_search_disclosure_service(
+            report_markdown,
+            search_status=search_status,
+            search_notes=search_notes,
+            search_sources=search_sources,
+        )
 
         # Stage 6: run symbolic/posthoc verification before any reviewer pass.
         round_report_path = run_dir / f"review_round_{review_round}_report.md"
@@ -1910,9 +2008,7 @@ def run_analysis(
         save_markdown_report(report_markdown, round_report_path)
         _accumulate_duration(timing_breakdown, "report_persist_duration_ms", _elapsed_ms(report_persist_started_at))
 
-        step_traces_tuple = tuple(all_step_traces)
         tools_used = _collect_tools_used(step_traces_tuple, telemetry)
-        search_status, search_notes = _determine_search_status(step_traces_tuple, telemetry)
 
         workflow_tracker.transition(WorkflowState.VALIDATE)
         initial_validation = ArtifactValidationResult(
@@ -1963,6 +2059,9 @@ def run_analysis(
             execution_audit=current_execution_audit,
             report_contract_check=current_report_contract,
             symbolic_profile=resolved_symbolic_profile,
+            search_requested=search_requested,
+            search_configured=search_configured,
+            search_sources=search_sources,
         )
         _accumulate_duration(timing_breakdown, "trace_persist_duration_ms", _elapsed_ms(trace_persist_started_at))
 
@@ -2295,7 +2394,13 @@ def run_analysis(
     # Stage 8: write memories, persist final trace, and return the public result.
     step_traces_tuple = tuple(all_step_traces)
     tools_used = _collect_tools_used(step_traces_tuple, telemetry)
-    search_status, search_notes = _determine_search_status(step_traces_tuple, telemetry)
+    search_status, search_notes = _determine_search_status(
+        step_traces_tuple,
+        telemetry,
+        search_requested=search_requested,
+        search_configured=search_configured,
+    )
+    search_sources = _collect_search_sources(step_traces_tuple)
 
     timing_snapshot = dict(timing_breakdown)
     timing_snapshot["total_duration_ms"] = _elapsed_ms(run_started_at)
@@ -2344,6 +2449,7 @@ def run_analysis(
                 tools_used=tools_used,
                 search_status=search_status,
                 search_notes=search_notes,
+                search_sources=search_sources,
                 workflow_complete=artifact_validation.workflow_complete,
                 workflow_warnings=artifact_validation.warnings,
                 missing_artifacts=artifact_validation.missing_artifacts,
@@ -2494,6 +2600,7 @@ def run_analysis(
                 tools_used=tools_used,
                 search_status=search_status,
                 search_notes=search_notes,
+                search_sources=search_sources,
                 workflow_complete=artifact_validation.workflow_complete,
                 workflow_warnings=artifact_validation.warnings,
                 missing_artifacts=artifact_validation.missing_artifacts,
@@ -2670,6 +2777,9 @@ def run_analysis(
         report_contract_check=current_report_contract,
         symbolic_profile=resolved_symbolic_profile,
         lineage_payload=lineage_payload,
+        search_requested=search_requested,
+        search_configured=search_configured,
+        search_sources=search_sources,
     )
     _accumulate_duration(
         timing_breakdown,
@@ -2717,6 +2827,7 @@ def run_analysis(
         tools_used=tools_used,
         search_status=search_status,
         search_notes=search_notes,
+        search_sources=search_sources,
         workflow_complete=artifact_validation.workflow_complete,
         workflow_warnings=artifact_validation.warnings,
         missing_artifacts=artifact_validation.missing_artifacts,
