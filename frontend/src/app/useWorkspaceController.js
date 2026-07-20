@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { askHistoryQuestion, fetchHistoryRun, fetchWorkspace, startAnalysis } from "../api";
+import {
+  askHistoryQuestion,
+  createModelingPackage,
+  fetchHistoryRun,
+  fetchWorkspace,
+  startAnalysis,
+  updateModelingPackage,
+} from "../api";
 import { DEFAULT_FORM } from "./defaults";
 
 export function useWorkspaceController() {
@@ -12,6 +19,12 @@ export function useWorkspaceController() {
   const [form, setForm] = useState(DEFAULT_FORM);
   const [dataFile, setDataFile] = useState(null);
   const [knowledgeFiles, setKnowledgeFiles] = useState([]);
+  const [problemFile, setProblemFile] = useState(null);
+  const [modelingDataFiles, setModelingDataFiles] = useState([]);
+  const [modelingAttachments, setModelingAttachments] = useState([]);
+  const [modelingPackage, setModelingPackage] = useState(null);
+  const [modelingBusy, setModelingBusy] = useState(false);
+  const [modelingError, setModelingError] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [status, setStatus] = useState({ state: "idle", message: "等待任务开始" });
   const [logs, setLogs] = useState([]);
@@ -144,6 +157,44 @@ export function useWorkspaceController() {
     }
   };
 
+  const inspectModelingPackage = async () => {
+    if (!problemFile || !modelingDataFiles.length || modelingBusy) return;
+    const formData = new FormData();
+    formData.append("problem_file", problemFile);
+    modelingDataFiles.forEach((file) => formData.append("data_files", file));
+    modelingAttachments.forEach((file) => formData.append("attachments", file));
+    setModelingBusy(true);
+    setModelingError("");
+    setModelingPackage(null);
+    try {
+      const payload = await createModelingPackage(formData);
+      setModelingPackage(payload);
+    } catch (error) {
+      setModelingError(error instanceof Error ? error.message : "赛题资料识别失败");
+    } finally {
+      setModelingBusy(false);
+    }
+  };
+
+  const saveModelingReview = async (corrections) => {
+    if (!modelingPackage?.packageId || modelingBusy) return;
+    setModelingBusy(true);
+    setModelingError("");
+    try {
+      const payload = await updateModelingPackage(modelingPackage.packageId, corrections);
+      setModelingPackage(payload);
+    } catch (error) {
+      setModelingError(error instanceof Error ? error.message : "资料包修正保存失败");
+    } finally {
+      setModelingBusy(false);
+    }
+  };
+
+  const resetModelingPackage = () => {
+    setModelingPackage(null);
+    setModelingError("");
+  };
+
   const handleAskQuestion = async () => {
     if (!qaQuestion.trim()) return;
     setQaLoading(true);
@@ -173,6 +224,9 @@ export function useWorkspaceController() {
     workspace: { data: workspace, error: workspaceError, loading: workspaceLoading, refresh: refreshWorkspace },
     analysis: {
       form, setForm, dataFile, setDataFile, knowledgeFiles, setKnowledgeFiles,
+      problemFile, setProblemFile, modelingDataFiles, setModelingDataFiles,
+      modelingAttachments, setModelingAttachments, modelingPackage,
+      modelingBusy, modelingError, inspectModelingPackage, saveModelingReview, resetModelingPackage,
       isRunning, status, logs, result, submit: submitAnalysis,
     },
     history: {

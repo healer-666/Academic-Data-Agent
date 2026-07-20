@@ -206,6 +206,32 @@ export async function startAnalysis(formData, onEvent) {
   }
 }
 
+export async function createModelingPackage(formData) {
+  const response = await fetch(apiUrl("/api/modeling/packages"), {
+    method: "POST",
+    headers: { Accept: "application/json" },
+    body: formData,
+  });
+  const payload = await readJson(response);
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.message || `赛题资料识别失败：${response.status}`);
+  }
+  return payload;
+}
+
+export async function updateModelingPackage(packageId, corrections) {
+  const response = await fetch(apiUrl(`/api/modeling/packages/${encodeURIComponent(packageId)}`), {
+    method: "PATCH",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(corrections),
+  });
+  const payload = await readJson(response);
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.message || `资料包修正保存失败：${response.status}`);
+  }
+  return payload;
+}
+
 export function toAbsoluteFileUrl(url) {
   if (!url) return "";
   if (/^https?:\/\//i.test(url) || url.startsWith("data:")) return url;
