@@ -93,7 +93,11 @@ python main.py --data data/simple_data.xlsx
 ### 4. Launch the Web workspace
 
 ```bash
-python gradio_app.py
+cd frontend
+npm install
+npm run build
+cd ..
+python web_app.py
 ```
 
 ## 🧰 Common Options

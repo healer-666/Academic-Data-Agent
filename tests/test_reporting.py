@@ -13,7 +13,6 @@ if str(SRC_PATH) not in sys.path:
 from data_analysis_agent.rag.models import RetrievedChunk
 from data_analysis_agent.reporting import (
     analyze_evidence_coverage,
-    convert_markdown_images_to_gradio_urls,
     extract_report_and_telemetry,
     normalize_markdown_image_paths,
 )
@@ -25,7 +24,8 @@ class ReportingTests(unittest.TestCase):
             "# Data Analysis Report\n\nReport body.\n\n"
             '<telemetry>{"methods":["t-test"],"domain":"finance","tools_used":["PythonInterpreterTool"],'
             '"search_used":false,"search_notes":"not used","cleaned_data_saved":true,'
-            '"cleaned_data_path":"outputs/run/data/cleaned_data.csv","figures_generated":["outputs/run/figures/review_round_1/chart.png"]}</telemetry>'
+            '"cleaned_data_path":"outputs/run/data/cleaned_data.csv",'
+            '"figures_generated":["outputs/run/figures/review_round_1/chart.png"]}</telemetry>'
         )
 
         result = extract_report_and_telemetry(raw)
@@ -78,7 +78,7 @@ class ReportingTests(unittest.TestCase):
         figure_path = PROJECT_ROOT / "outputs" / "run_demo" / "figures" / "review_round_1" / "chart.png"
         figure_path.parent.mkdir(parents=True, exist_ok=True)
         figure_path.write_text("fake", encoding="utf-8")
-        markdown = "![图表](outputs/run_demo/figures/review_round_1/chart.png)"
+        markdown = "![chart](outputs/run_demo/figures/review_round_1/chart.png)"
 
         normalized = normalize_markdown_image_paths(markdown, project_root=PROJECT_ROOT)
 
@@ -88,29 +88,18 @@ class ReportingTests(unittest.TestCase):
         absolute = (PROJECT_ROOT / "outputs" / "run_demo" / "figures" / "chart_abs.png").resolve()
         absolute.parent.mkdir(parents=True, exist_ok=True)
         absolute.write_text("fake", encoding="utf-8")
-        markdown = f"![图表]({absolute.as_posix()})"
+        markdown = f"![chart]({absolute.as_posix()})"
 
         normalized = normalize_markdown_image_paths(markdown, project_root=PROJECT_ROOT)
 
         self.assertEqual(normalized, markdown)
 
     def test_normalize_markdown_image_paths_does_not_touch_standard_links(self):
-        markdown = "[下载报告](outputs/run_demo/final_report.md)"
+        markdown = "[download report](outputs/run_demo/final_report.md)"
 
         normalized = normalize_markdown_image_paths(markdown, project_root=PROJECT_ROOT)
 
         self.assertEqual(normalized, markdown)
-
-    def test_convert_markdown_images_to_gradio_urls_rewrites_image_targets(self):
-        figure_path = PROJECT_ROOT / "outputs" / "run_demo" / "figures" / "review_round_1" / "chart_gradio.png"
-        figure_path.parent.mkdir(parents=True, exist_ok=True)
-        figure_path.write_text("fake", encoding="utf-8")
-        markdown = "![图表](outputs/run_demo/figures/review_round_1/chart_gradio.png)"
-
-        converted = convert_markdown_images_to_gradio_urls(markdown, project_root=PROJECT_ROOT)
-
-        self.assertIn("/file=", converted)
-        self.assertIn("chart_gradio.png", converted)
 
     def test_analyze_evidence_coverage_maps_inline_citations_to_register(self):
         report = (
@@ -173,11 +162,9 @@ class ReportingTests(unittest.TestCase):
     def test_analyze_evidence_coverage_ignores_guideline_word_in_data_filename(self):
         report = (
             "# 数据概览\n\n"
-            "- 数据来源: `data/eval/reference_guideline_lookup.csv`\n"
-            "- 变量: marker_level\n\n"
+            "- 数据来源: `data/eval/reference_guideline_lookup.csv`\n\n"
             "## 结论\n\n"
-            "Marker-L 是一个示例性炎症相关指标。 [来源: reference_guideline_lookup.md]\n"
-            "单次横截面数据只能支持差异性描述，不能证明因果关系。 [来源: reference_guideline_lookup.md]\n"
+            "Marker-L 是一个示例性的炎症相关指标。[来源: reference_guideline_lookup.md]\n"
         )
 
         coverage = analyze_evidence_coverage(
@@ -185,7 +172,7 @@ class ReportingTests(unittest.TestCase):
             evidence_register=(
                 RetrievedChunk(
                     chunk_id="chunk-1",
-                    text="Marker-L 是一个示例性炎症相关指标。",
+                    text="Marker-L 是一个示例性的炎症相关指标。",
                     source_name="reference_guideline_lookup.md",
                     source_path="memory/reference_guideline_lookup.md",
                 ),
@@ -200,11 +187,9 @@ class ReportingTests(unittest.TestCase):
             "# 数据概览\n\n"
             "Small tabular dataset.\n\n"
             "## 结果解释\n\n"
-            "Treated 组的 Marker-L 中位数高于 control 组。"
-            "Mann-Whitney U 检验显示两组分布差异具有统计学意义。"
-            "效应量 r 达到最大值，提示两组间几乎无重叠。\n\n"
+            "Treated 组的 Marker-L 中位数高于 control 组。\n\n"
             "## 结论\n\n"
-            "Marker-L 是一个示例性炎症相关指标。 [来源: reference_guideline_lookup.md]\n"
+            "Marker-L 是一个示例性的炎症相关指标。[来源: reference_guideline_lookup.md]\n"
         )
 
         coverage = analyze_evidence_coverage(
@@ -212,7 +197,7 @@ class ReportingTests(unittest.TestCase):
             evidence_register=(
                 RetrievedChunk(
                     chunk_id="chunk-1",
-                    text="Marker-L 是一个示例性炎症相关指标。",
+                    text="Marker-L 是一个示例性的炎症相关指标。",
                     source_name="reference_guideline_lookup.md",
                     source_path="memory/reference_guideline_lookup.md",
                 ),
