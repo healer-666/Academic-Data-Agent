@@ -1,0 +1,41 @@
+{
+  "problem_summary": "A concise paraphrase of the modeling objectives and constraints.",
+  "data_operations": [
+    {
+      "name": "Missing-value audit",
+      "purpose": "Measure missingness before selecting an imputation strategy.",
+      "evidence_source_ids": ["data", "paper"]
+    }
+  ],
+  "models": [
+    {
+      "name": "Example model",
+      "purpose": "Explain what the historical solution modeled.",
+      "assumptions": ["List the assumptions stated or supported by the sources."],
+      "evidence_source_ids": ["paper"]
+    }
+  ],
+  "validation_methods": [
+    {
+      "name": "Example validation",
+      "purpose": "Explain how the historical work checked robustness.",
+      "evidence_source_ids": ["paper"]
+    }
+  ],
+  "charts": [
+    {
+      "name": "Example diagnostic chart",
+      "purpose": "Explain the chart's analytical role without copying the figure.",
+      "evidence_source_ids": ["paper"]
+    }
+  ],
+  "key_findings": [
+    {
+      "statement": "Paraphrase a source-supported historical finding.",
+      "evidence_source_ids": ["paper"]
+    }
+  ],
+  "limitations": [
+    "Historical results are references only and must be recomputed on current data."
+  ]
+}
