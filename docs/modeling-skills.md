@@ -12,7 +12,7 @@ Every skill is organized by method rather than paper or competition. Its contrac
 - validation requirements: observable checks that must accompany the method;
 - `source_case_ids`: at least two approved cases supporting the reusable pattern.
 
-The six catalog categories are data diagnostics, feature engineering, modeling, validation, sensitivity analysis, and result organization. The built-in catalog is at `data/modeling_skills/catalog.json`.
+The six catalog categories are data diagnostics, feature engineering, modeling, validation, sensitivity analysis, and result organization. The synthesis source catalog is at `data/modeling_skills/catalog.json`; runtime modeling tasks resolve the active versioned experience library described in `docs/competition-experience-library.md`.
 
 ## Build from approved cases
 

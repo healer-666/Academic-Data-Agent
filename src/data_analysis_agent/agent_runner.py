@@ -28,6 +28,7 @@ from .data_context import DataContextSummary, build_data_context
 from .document_ingestion import IngestionResult
 from .events import EventHandler, EventRecorder, emit_event
 from .execution_audit import audit_stage_execution
+from .experience_library import ExperienceLibraryManager
 from .harness.summary import build_run_summary_payload
 from .knowledge_context import KnowledgeContextProvider
 from .lineage import LineageArtifact, write_lineage_artifacts
@@ -40,7 +41,7 @@ from .memory import (
     extract_memory_records,
 )
 from .model_registry import ModelRegistry
-from .modeling_skills import load_runtime_modeling_skills
+from .modeling_skills import ModelingSkillError, load_runtime_modeling_skills
 from .prompts import (
     DEFAULT_QUERY,
     build_observation_prompt,
@@ -139,6 +140,11 @@ def build_plaintext_event_handler() -> EventHandler:
             print(f"      Data shape: {shape[0]} rows x {shape[1]} columns")
         elif event_type == "modeling_skills_selected" and payload.get("enabled"):
             print(f"      Modeling methods selected: {', '.join(payload.get('skill_ids', []))}")
+        elif event_type == "experience_library_resolved":
+            print(
+                f"      Competition experience library: {payload.get('status', 'degraded')} "
+                f"{payload.get('version', '')}".rstrip()
+            )
         elif event_type == "knowledge_indexing_started":
             print(f"      Indexing {payload.get('file_count', 0)} knowledge file(s) into the local knowledge base...")
         elif event_type == "knowledge_indexing_completed":
@@ -1243,6 +1249,8 @@ def run_analysis(
     task_expectations: Iterable[str] = (),
     modeling_skill_catalog_path: str | Path | None = None,
     modeling_characteristics: Iterable[str] = (),
+    experience_library_root: str | Path | None = None,
+    bundled_experience_library_root: str | Path | None = None,
     symbolic_profile: str = "full",
     lineage_contract: dict[str, Any] | None = None,
     runtime_config_override: RuntimeConfig | None = None,
@@ -1354,14 +1362,48 @@ def run_analysis(
         document_ingestion.normalized_data_path,
         input_kind=document_ingestion.input_kind,
     )
-    modeling_skill_catalog, selected_modeling_skills = load_runtime_modeling_skills(
-        task_type=resolved_task_type,
-        query=query,
-        columns=data_context.columns,
-        shape=data_context.shape,
-        catalog_path=modeling_skill_catalog_path,
-        characteristics=modeling_characteristics,
-    )
+    experience_resolution = None
+    effective_modeling_skill_catalog_path = modeling_skill_catalog_path
+    if resolved_task_type == "mathematical_modeling" and effective_modeling_skill_catalog_path is None:
+        manager_kwargs: dict[str, Any] = {}
+        if experience_library_root is not None:
+            manager_kwargs["install_root"] = experience_library_root
+        if bundled_experience_library_root is not None:
+            manager_kwargs["bundled_root"] = bundled_experience_library_root
+        experience_resolution = ExperienceLibraryManager(**manager_kwargs).resolve()
+        effective_modeling_skill_catalog_path = experience_resolution.skill_catalog_path
+        _emit_event(
+            event_recorder.emit,
+            "experience_library_resolved",
+            status=experience_resolution.status,
+            version=experience_resolution.version,
+            content_status=experience_resolution.content_status,
+            warnings=list(experience_resolution.warnings),
+        )
+    try:
+        if resolved_task_type == "mathematical_modeling" and effective_modeling_skill_catalog_path is not None:
+            modeling_skill_catalog, selected_modeling_skills = load_runtime_modeling_skills(
+                task_type=resolved_task_type,
+                query=query,
+                columns=data_context.columns,
+                shape=data_context.shape,
+                catalog_path=effective_modeling_skill_catalog_path,
+                characteristics=modeling_characteristics,
+            )
+        else:
+            modeling_skill_catalog, selected_modeling_skills = None, ()
+    except ModelingSkillError as exc:
+        if modeling_skill_catalog_path is not None:
+            raise
+        modeling_skill_catalog, selected_modeling_skills = None, ()
+        _emit_event(
+            event_recorder.emit,
+            "experience_library_resolved",
+            status="degraded",
+            version=getattr(experience_resolution, "version", ""),
+            content_status=getattr(experience_resolution, "content_status", ""),
+            warnings=[f"Modeling skill catalog is unavailable: {exc}"],
+        )
     modeling_skills_context = (
         modeling_skill_catalog.render_for_prompt(selected_modeling_skills)
         if modeling_skill_catalog is not None

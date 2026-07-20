@@ -8,6 +8,7 @@ from typing import Any
 __all__ = [
     "AnalysisRunResult",
     "DataContextSummary",
+    "ExperienceLibraryManager",
     "PythonInterpreterTool",
     "RuntimeConfig",
     "ScientificReActRunner",
@@ -36,6 +37,7 @@ _EXPORT_MAP = {
     "ModelingTaskProfile": ("data_analysis_agent.modeling_skills", "ModelingTaskProfile"),
     "RagService": ("data_analysis_agent.rag", "RagService"),
     "DataContextSummary": ("data_analysis_agent.data_context", "DataContextSummary"),
+    "ExperienceLibraryManager": ("data_analysis_agent.experience_library", "ExperienceLibraryManager"),
     "build_data_context": ("data_analysis_agent.data_context", "build_data_context"),
     "render_diagnostics": ("data_analysis_agent.presentation", "render_diagnostics"),
     "render_full_report": ("data_analysis_agent.presentation", "render_full_report"),

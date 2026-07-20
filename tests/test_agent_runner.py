@@ -345,6 +345,49 @@ class AgentRunnerTests(unittest.TestCase):
         self.assertEqual(run_summary_payload["run_id"], result.run_dir.name)
         self.assertIn("execution_audit_status", run_summary_payload)
 
+    def test_modeling_run_degrades_when_experience_library_is_missing(self):
+        tmp_path = self._workspace_case_dir()
+        data_path = tmp_path / "modeling.csv"
+        data_path.write_text("month,demand\n1,10\n2,12\n", encoding="utf-8")
+        llm = StubLLM(
+            [
+                json.dumps(
+                    {
+                        "decision": "Done",
+                        "action": "finish",
+                        "tool_name": "",
+                        "tool_input": "",
+                        "final_answer": _finish_report("General analysis fallback."),
+                    }
+                )
+            ]
+        )
+
+        with patch("data_analysis_agent.agent_runner.load_runtime_config", return_value=self._runtime_config()), patch(
+            "data_analysis_agent.agent_runner.build_llm", return_value=llm
+        ), patch(
+            "data_analysis_agent.agent_runner.build_tool_registry", return_value=StubRegistry(cleaned_data_path=None)
+        ):
+            result = run_analysis(
+                data_path,
+                output_dir=tmp_path / "outputs",
+                quality_mode="draft",
+                task_type="mathematical_modeling",
+                experience_library_root=tmp_path / "missing-install",
+                bundled_experience_library_root=tmp_path / "missing-bundle",
+            )
+
+        self.assertIn("General analysis fallback", result.report_markdown)
+        first_call_text = json.dumps(llm.calls[0], ensure_ascii=False)
+        self.assertNotIn("<Modeling_Skills_Context>", first_call_text)
+        trace_payload = json.loads(result.trace_path.read_text(encoding="utf-8"))
+        experience_events = [
+            event
+            for event in trace_payload["event_stream"]
+            if event["event_type"] == "experience_library_resolved"
+        ]
+        self.assertEqual(experience_events[0]["payload"]["status"], "degraded")
+
     def test_build_reviewer_task_includes_generated_artifact_evidence(self):
         data_context = DataContextSummary(
             data_path=Path("data/sample.csv"),
