@@ -40,6 +40,7 @@ from .memory import (
     extract_memory_records,
 )
 from .model_registry import ModelRegistry
+from .modeling_skills import load_runtime_modeling_skills
 from .prompts import (
     DEFAULT_QUERY,
     build_observation_prompt,
@@ -136,6 +137,8 @@ def build_plaintext_event_handler() -> EventHandler:
         elif event_type == "data_context_ready":
             shape = payload.get("shape", ("?", "?"))
             print(f"      Data shape: {shape[0]} rows x {shape[1]} columns")
+        elif event_type == "modeling_skills_selected" and payload.get("enabled"):
+            print(f"      Modeling methods selected: {', '.join(payload.get('skill_ids', []))}")
         elif event_type == "knowledge_indexing_started":
             print(f"      Indexing {payload.get('file_count', 0)} knowledge file(s) into the local knowledge base...")
         elif event_type == "knowledge_indexing_completed":
@@ -1238,6 +1241,8 @@ def run_analysis(
     memory_scope_key: str | None = None,
     task_type: str = "",
     task_expectations: Iterable[str] = (),
+    modeling_skill_catalog_path: str | Path | None = None,
+    modeling_characteristics: Iterable[str] = (),
     symbolic_profile: str = "full",
     lineage_contract: dict[str, Any] | None = None,
     runtime_config_override: RuntimeConfig | None = None,
@@ -1348,6 +1353,26 @@ def run_analysis(
     data_context = build_data_context(
         document_ingestion.normalized_data_path,
         input_kind=document_ingestion.input_kind,
+    )
+    modeling_skill_catalog, selected_modeling_skills = load_runtime_modeling_skills(
+        task_type=resolved_task_type,
+        query=query,
+        columns=data_context.columns,
+        shape=data_context.shape,
+        catalog_path=modeling_skill_catalog_path,
+        characteristics=modeling_characteristics,
+    )
+    modeling_skills_context = (
+        modeling_skill_catalog.render_for_prompt(selected_modeling_skills)
+        if modeling_skill_catalog is not None
+        else ""
+    )
+    _emit_event(
+        event_recorder.emit,
+        "modeling_skills_selected",
+        enabled=modeling_skill_catalog is not None,
+        skill_ids=[item.skill_id for item in selected_modeling_skills],
+        categories=[item.category for item in selected_modeling_skills],
     )
     _accumulate_duration(timing_breakdown, "data_context_duration_ms", _elapsed_ms(data_context_started_at))
     small_simple_dataset = _is_small_simple_dataset(data_context)
@@ -1899,6 +1924,7 @@ def run_analysis(
                     for part in (
                         query,
                         knowledge_bundle.render_for_prompt(),
+                        modeling_skills_context,
                         data_context.context_text,
                         run_context_text,
                     )

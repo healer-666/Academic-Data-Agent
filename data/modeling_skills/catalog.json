@@ -1,0 +1,197 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-07-20T00:00:00Z",
+  "source_case_ids": [
+    "representative-capacity-planning",
+    "representative-ecosystem-risk",
+    "representative-regional-demand"
+  ],
+  "skills": [
+    {
+      "id": "structural-data-audit",
+      "name": "Structural data audit",
+      "category": "data_diagnostics",
+      "description": "Establish table grain, key integrity, missingness, units, ranges, and leakage risks before mathematical modeling.",
+      "applicability": {
+        "task_types": ["mathematical_modeling"],
+        "characteristics_any": [],
+        "characteristics_all": [],
+        "query_terms_any": [],
+        "exclusions": ["Do not infer semantic equality from similar column names without checking values and units."]
+      },
+      "inputs": [
+        {"name": "Table metadata", "description": "Rows, columns, types, samples, missingness, and candidate identifiers.", "required": true},
+        {"name": "Problem constraints", "description": "Definitions, units, time scope, and entity scope from the task.", "required": true}
+      ],
+      "procedure": [
+        {"action": "State the grain of every table and identify candidate keys.", "purpose": "Prevent invalid joins and duplicated observations."},
+        {"action": "Measure missingness, duplicates, ranges, units, and impossible values.", "purpose": "Turn data defects into explicit modeling decisions."},
+        {"action": "Check whether any feature uses information unavailable at prediction or decision time.", "purpose": "Prevent target and temporal leakage."}
+      ],
+      "outputs": [
+        {"name": "Data audit", "description": "A defect table with severity, affected fields, evidence, and treatment."},
+        {"name": "Model-ready schema", "description": "Declared grain, keys, units, roles, and exclusions."}
+      ],
+      "validation_requirements": [
+        {"name": "Row accounting", "description": "Report row counts before and after every join, filter, and deduplication.", "required": true},
+        {"name": "Key checks", "description": "Quantify duplicate and unmatched key rates.", "required": true}
+      ],
+      "source_case_ids": ["representative-capacity-planning", "representative-regional-demand"]
+    },
+    {
+      "id": "time-aware-feature-engineering",
+      "name": "Time-aware feature engineering",
+      "category": "feature_engineering",
+      "description": "Create lag, rolling, seasonal, and calendar features using only information available before each target time.",
+      "applicability": {
+        "task_types": ["mathematical_modeling"],
+        "characteristics_any": ["time_series"],
+        "characteristics_all": [],
+        "query_terms_any": ["forecast", "预测", "趋势"],
+        "exclusions": ["Do not use centered windows or future-filled values for predictive evaluation."]
+      },
+      "inputs": [
+        {"name": "Ordered observations", "description": "A dataset with a validated time field and stable entity grain.", "required": true},
+        {"name": "Forecast horizon", "description": "The lead time between available inputs and the predicted outcome.", "required": true}
+      ],
+      "procedure": [
+        {"action": "Sort within entity and define a cutoff for every target row.", "purpose": "Make information availability explicit."},
+        {"action": "Generate lag, trailing-window, seasonal, and calendar candidates.", "purpose": "Represent persistence and periodic structure."},
+        {"action": "Fit all imputers and scalers inside each training fold.", "purpose": "Keep validation free of preprocessing leakage."}
+      ],
+      "outputs": [
+        {"name": "Feature matrix", "description": "Model inputs with definitions, availability times, and missingness rules."},
+        {"name": "Feature lineage", "description": "Source columns and transformations for each derived feature."}
+      ],
+      "validation_requirements": [
+        {"name": "Cutoff test", "description": "Assert every feature timestamp is no later than its row cutoff.", "required": true},
+        {"name": "Ablation", "description": "Compare the feature set with a simple baseline and report out-of-sample change.", "required": true}
+      ],
+      "source_case_ids": ["representative-capacity-planning", "representative-regional-demand"]
+    },
+    {
+      "id": "baseline-to-candidate-modeling",
+      "name": "Baseline-to-candidate modeling",
+      "category": "modeling",
+      "description": "Start with an interpretable baseline, add justified candidate models, and select using task-aligned performance plus constraint checks.",
+      "applicability": {
+        "task_types": ["mathematical_modeling"],
+        "characteristics_any": [],
+        "characteristics_all": [],
+        "query_terms_any": [],
+        "exclusions": ["Do not choose a complex model solely from in-sample fit."]
+      },
+      "inputs": [
+        {"name": "Model-ready data", "description": "Audited observations, targets, features, and constraints.", "required": true},
+        {"name": "Decision metric", "description": "A metric tied to the problem objective and error costs.", "required": true}
+      ],
+      "procedure": [
+        {"action": "Fit a naive or simple interpretable baseline.", "purpose": "Create a minimum performance and sanity reference."},
+        {"action": "Fit a small set of candidates with explicit assumptions.", "purpose": "Compare mechanisms rather than search indiscriminately."},
+        {"action": "Select using held-out performance, stability, feasibility, and interpretability.", "purpose": "Align the chosen model with the actual decision."}
+      ],
+      "outputs": [
+        {"name": "Model comparison", "description": "Baseline and candidates with metrics, uncertainty, assumptions, and costs."},
+        {"name": "Selected model", "description": "The chosen formulation, parameters, and selection rationale."}
+      ],
+      "validation_requirements": [
+        {"name": "Baseline comparison", "description": "Show that the selected model improves the task metric over the baseline.", "required": true},
+        {"name": "Constraint verification", "description": "Check predictions or decisions against required physical and business constraints.", "required": true}
+      ],
+      "source_case_ids": ["representative-capacity-planning", "representative-ecosystem-risk"]
+    },
+    {
+      "id": "structure-preserving-validation",
+      "name": "Structure-preserving validation",
+      "category": "validation",
+      "description": "Choose validation splits that preserve temporal, grouped, or spatial dependence and keep preprocessing inside training folds.",
+      "applicability": {
+        "task_types": ["mathematical_modeling"],
+        "characteristics_any": ["time_series", "panel_data", "spatial", "small_sample"],
+        "characteristics_all": [],
+        "query_terms_any": ["forecast", "预测", "region", "区域"],
+        "exclusions": ["Do not use unrestricted random row splits when observations share time, entity, or location dependence."]
+      },
+      "inputs": [
+        {"name": "Dependency structure", "description": "Time, group, spatial, and repeated-measure identifiers.", "required": true},
+        {"name": "Candidate pipeline", "description": "Preprocessing, feature creation, fitting, and prediction steps.", "required": true}
+      ],
+      "procedure": [
+        {"action": "Select rolling, grouped, blocked, or nested splits that match deployment.", "purpose": "Estimate performance under realistic information boundaries."},
+        {"action": "Refit the full pipeline separately in every fold.", "purpose": "Prevent preprocessing and selection leakage."},
+        {"action": "Report fold-level errors and residual diagnostics.", "purpose": "Expose instability hidden by an average metric."}
+      ],
+      "outputs": [
+        {"name": "Validation design", "description": "Split logic, fold membership, metric definitions, and leakage controls."},
+        {"name": "Out-of-sample results", "description": "Aggregate and fold-level metrics with residual checks."}
+      ],
+      "validation_requirements": [
+        {"name": "Split integrity", "description": "Assert forbidden time, group, or spatial overlap is zero.", "required": true},
+        {"name": "Error distribution", "description": "Report variation across folds or backtest windows, not only the mean.", "required": true}
+      ],
+      "source_case_ids": ["representative-regional-demand", "representative-ecosystem-risk"]
+    },
+    {
+      "id": "assumption-sensitivity-analysis",
+      "name": "Assumption sensitivity analysis",
+      "category": "sensitivity_analysis",
+      "description": "Vary uncertain inputs, modeling assumptions, and decision thresholds to identify which conclusions are stable.",
+      "applicability": {
+        "task_types": ["mathematical_modeling"],
+        "characteristics_any": [],
+        "characteristics_all": [],
+        "query_terms_any": [],
+        "exclusions": ["Do not vary one parameter while silently refitting or changing unrelated assumptions."]
+      },
+      "inputs": [
+        {"name": "Reference model", "description": "A validated model and its baseline assumptions.", "required": true},
+        {"name": "Uncertain factors", "description": "Plausible ranges or scenarios for inputs, parameters, and thresholds.", "required": true}
+      ],
+      "procedure": [
+        {"action": "Rank assumptions by uncertainty and decision relevance.", "purpose": "Focus computation on consequential uncertainty."},
+        {"action": "Run controlled one-at-a-time and joint scenario changes.", "purpose": "Separate local effects from interactions."},
+        {"action": "Track metric and decision changes relative to the reference model.", "purpose": "Identify thresholds where conclusions reverse."}
+      ],
+      "outputs": [
+        {"name": "Sensitivity matrix", "description": "Scenario inputs, performance changes, decision changes, and rank stability."},
+        {"name": "Robustness statement", "description": "Stable conclusions, fragile conclusions, and breakpoints."}
+      ],
+      "validation_requirements": [
+        {"name": "Range justification", "description": "Tie every tested range to observed data, domain constraints, or an explicit scenario.", "required": true},
+        {"name": "Decision stability", "description": "Report whether recommendations, rankings, or feasibility change across scenarios.", "required": true}
+      ],
+      "source_case_ids": ["representative-capacity-planning", "representative-ecosystem-risk", "representative-regional-demand"]
+    },
+    {
+      "id": "claim-evidence-result-organization",
+      "name": "Claim-evidence result organization",
+      "category": "result_organization",
+      "description": "Organize each conclusion as a claim linked to a metric, figure or table, uncertainty, assumptions, and decision implication.",
+      "applicability": {
+        "task_types": ["mathematical_modeling"],
+        "characteristics_any": [],
+        "characteristics_all": [],
+        "query_terms_any": [],
+        "exclusions": ["Do not present historical case findings as results of the current analysis."]
+      },
+      "inputs": [
+        {"name": "Validated results", "description": "Metrics, diagnostics, sensitivity results, figures, and model assumptions.", "required": true},
+        {"name": "Decision questions", "description": "The questions and constraints the final answer must resolve.", "required": true}
+      ],
+      "procedure": [
+        {"action": "State each decision-relevant claim in one testable sentence.", "purpose": "Separate conclusions from background and method description."},
+        {"action": "Attach current-run evidence, uncertainty, and assumptions to every claim.", "purpose": "Keep conclusions auditable and calibrated."},
+        {"action": "End with recommendations, limitations, and next checks.", "purpose": "Translate analysis into bounded action."}
+      ],
+      "outputs": [
+        {"name": "Claim-evidence table", "description": "Claims linked to current-run artifacts, uncertainty, assumptions, and implications."},
+        {"name": "Decision summary", "description": "Recommendations with confidence and explicit limitations."}
+      ],
+      "validation_requirements": [
+        {"name": "Evidence coverage", "description": "Every major claim cites at least one current-run metric, table, or figure.", "required": true},
+        {"name": "Scope check", "description": "Clearly distinguish current results, historical method inspiration, and unresolved assumptions.", "required": true}
+      ],
+      "source_case_ids": ["representative-ecosystem-risk", "representative-regional-demand"]
+    }
+  ]
+}
