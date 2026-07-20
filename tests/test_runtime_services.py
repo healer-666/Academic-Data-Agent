@@ -127,7 +127,9 @@ class RuntimeServiceTests(unittest.TestCase):
 
         self.assertIn("hello_agents", names)
         self.assertIn("rich", names)
-        self.assertIn("gradio", names)
+        self.assertIn("fastapi", names)
+        self.assertIn("uvicorn", names)
+        self.assertIn("multipart", names)
         self.assertIn("pdfplumber", names)
         self.assertIn("chromadb", names)
         self.assertIn("embedding_env", names)
