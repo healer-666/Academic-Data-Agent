@@ -1,5 +1,79 @@
-import { BookOpen, Database, Loader2, Play, Settings2, ShieldCheck } from "lucide-react";
+import {
+  ArrowRight,
+  BarChart3,
+  Check,
+  Database,
+  FileText,
+  FlaskConical,
+  Info,
+  Loader2,
+  PackageCheck,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { FileInput } from "../components/WorkspacePrimitives";
+import {
+  ANALYSIS_SCENARIOS,
+  getAnalysisScenario,
+  selectAnalysisScenario,
+} from "../app/defaults";
+
+const SCENARIO_ICONS = {
+  general: Database,
+  modeling: FlaskConical,
+};
+
+function ScenarioSelector({ selectedId, onSelect }) {
+  return (
+    <div className="scenario-selector" aria-label="选择任务场景">
+      {Object.values(ANALYSIS_SCENARIOS).map((item) => {
+        const Icon = SCENARIO_ICONS[item.id];
+        const selected = selectedId === item.id;
+        return (
+          <button
+            className={`scenario-card ${selected ? "selected" : ""}`}
+            type="button"
+            key={item.id}
+            aria-pressed={selected}
+            onClick={() => onSelect(item.id)}
+          >
+            <span className="scenario-card-icon"><Icon size={22} /></span>
+            <span className="scenario-card-copy">
+              <strong>{item.label}</strong>
+              <small>{item.description}</small>
+            </span>
+            <span className="scenario-card-state" aria-hidden="true">
+              {selected ? <Check size={16} /> : <ArrowRight size={16} />}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function StrategySummary({ scenario }) {
+  return (
+    <section className={`strategy-summary strategy-${scenario.id}`} aria-label="系统采用的分析策略">
+      <header>
+        <span><Sparkles size={16} /></span>
+        <div>
+          <small>系统将自动采用</small>
+          <strong>{scenario.strategyTitle}</strong>
+        </div>
+      </header>
+      <ul>
+        {scenario.strategySummary.map((item) => (
+          <li key={item}><Check size={14} /> {item}</li>
+        ))}
+      </ul>
+      <footer>
+        <PackageCheck size={15} />
+        <span>目标产物：{scenario.deliverable}</span>
+      </footer>
+    </section>
+  );
+}
 
 function AnalysisView({
   form,
@@ -11,58 +85,53 @@ function AnalysisView({
   isRunning,
   onSubmit,
 }) {
+  const scenario = getAnalysisScenario(form.scenario);
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const selectScenario = (scenarioId) => {
+    setForm((current) => selectAnalysisScenario(current, scenarioId));
+  };
 
   return (
-    <section className="chat-page analysis-grid">
+    <section className="chat-page analysis-grid analysis-task-creation">
       <div className="chat-body">
-        <div className="chat-welcome">
-          <span className="kicker">New Analysis</span>
-          <h1>今天要分析什么数据？</h1>
-          <p>上传 CSV/Excel，输入任务要求，系统会生成可审计报告、图表、日志和可下载工件。</p>
+        <div className="chat-welcome task-welcome">
+          <span className="kicker">New Research Task</span>
+          <h1>选择你要完成的任务</h1>
+          <p>只需选择场景、说明问题并上传资料。系统会自动安排合适的分析深度、验证和结果检查。</p>
         </div>
 
-        <div className="guide-list nextchat-guide">
-          <article>
-            <Database size={18} />
-            <div>
-              <strong>数据主线</strong>
-              <p>围绕结构化表格完成清洗、统计、建模解释和结论输出。</p>
-            </div>
-          </article>
-          <article>
-            <BookOpen size={18} />
-            <div>
-              <strong>参考资料</strong>
-              <p>可上传文档沉淀到本地知识库，后续任务可继续检索使用。</p>
-            </div>
-          </article>
-          <article>
-            <ShieldCheck size={18} />
-            <div>
-              <strong>审计轨迹</strong>
-              <p>保留日志、过程、图表检查与下载入口，便于复查。</p>
-            </div>
-          </article>
-        </div>
+        <ScenarioSelector selectedId={scenario.id} onSelect={selectScenario} />
+        <StrategySummary scenario={scenario} />
       </div>
 
-      <form className="analysis-form chat-input-panel" onSubmit={onSubmit}>
+      <form className="analysis-form chat-input-panel task-input-panel" onSubmit={onSubmit}>
+        <div className="task-context-row">
+          <span className={`task-context-badge ${scenario.id}`}>
+            {scenario.id === "general" ? <BarChart3 size={15} /> : <FlaskConical size={15} />}
+            {scenario.label}
+          </span>
+          <span>{scenario.inputHint}</span>
+        </div>
+
         <div className="chat-input-panel-inner">
-          <label className="field field-wide">
-            <span>分析问题</span>
+          <label className="field field-wide task-query-field">
+            <span>{scenario.id === "general" ? "分析问题" : "赛题目标与补充要求"}</span>
             <textarea
-              rows={6}
+              rows={5}
               value={form.query}
               onChange={(event) => update("query", event.target.value)}
-              placeholder="例如：哪些变量最重要？是否存在显著差异？需要哪些图表支撑结论？"
+              placeholder={scenario.queryPlaceholder}
             />
           </label>
         </div>
 
-        <div className="chat-input-actions">
+        {scenario.boundary && (
+          <div className="scenario-boundary"><Info size={15} /><span>{scenario.boundary}</span></div>
+        )}
+
+        <div className="chat-input-actions task-input-actions">
           <FileInput
-            label="数据"
+            label={scenario.id === "general" ? "主要数据" : "赛题数据"}
             description="CSV / XLS / XLSX"
             accept=".csv,.xls,.xlsx"
             files={dataFile ? [dataFile] : []}
@@ -70,7 +139,7 @@ function AnalysisView({
             onClear={() => setDataFile(null)}
           />
           <FileInput
-            label="资料"
+            label={scenario.id === "general" ? "参考资料" : "赛题说明与附件"}
             description="TXT / MD / PDF"
             accept=".txt,.md,.pdf"
             multiple
@@ -79,93 +148,14 @@ function AnalysisView({
             onClear={() => setKnowledgeFiles([])}
           />
 
-          <details className="advanced-settings">
-            <summary>
-              <Settings2 size={16} />
-              <span>高级设置</span>
-            </summary>
-            <div className="form-grid">
-              <label className="field">
-                <span>输出深度</span>
-                <select value={form.qualityMode} onChange={(event) => update("qualityMode", event.target.value)}>
-                  <option value="draft">快速草稿</option>
-                  <option value="standard">标准分析</option>
-                  <option value="publication">深入分析</option>
-                </select>
-              </label>
-              <label className="field">
-                <span>速度偏好</span>
-                <select value={form.latencyMode} onChange={(event) => update("latencyMode", event.target.value)}>
-                  <option value="auto">自动平衡</option>
-                  <option value="quality">质量优先</option>
-                  <option value="fast">速度优先</option>
-                </select>
-              </label>
-              <label className="field">
-                <span>图表检查</span>
-                <select
-                  value={form.visionReviewMode}
-                  onChange={(event) => update("visionReviewMode", event.target.value)}
-                >
-                  <option value="off">关闭</option>
-                  <option value="auto">自动</option>
-                  <option value="on">始终检查</option>
-                </select>
-              </label>
-              <label className="field">
-                <span>最大步骤</span>
-                <input
-                  type="number"
-                  min="2"
-                  max="12"
-                  value={form.maxSteps}
-                  onChange={(event) => update("maxSteps", event.target.value)}
-                />
-              </label>
-              <label className="field">
-                <span>最大返修</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="4"
-                  value={form.maxReviews}
-                  onChange={(event) => update("maxReviews", event.target.value)}
-                />
-              </label>
-              <label className="field">
-                <span>结果目录</span>
-                <input value={form.outputDir} onChange={(event) => update("outputDir", event.target.value)} />
-              </label>
-              <label className="field">
-                <span>分析角色</span>
-                <input value={form.agentName} onChange={(event) => update("agentName", event.target.value)} />
-              </label>
-              <label className="field">
-                <span>任务标签</span>
-                <input value={form.sessionLabel} onChange={(event) => update("sessionLabel", event.target.value)} />
-              </label>
-              <label className="toggle-chip">
-                <input
-                  type="checkbox"
-                  checked={form.useRag}
-                  onChange={(event) => update("useRag", event.target.checked)}
-                />
-                使用参考资料
-              </label>
-              <label className="toggle-chip">
-                <input
-                  type="checkbox"
-                  checked={form.useMemory}
-                  onChange={(event) => update("useMemory", event.target.checked)}
-                />
-                参考历史经验
-              </label>
-            </div>
-          </details>
+          <div className="task-trust-note">
+            <ShieldCheck size={15} />
+            <span>运行参数由场景自动配置，过程与结果均保留审计记录</span>
+          </div>
 
           <button className="primary-button chat-input-send" type="submit" disabled={isRunning || !dataFile}>
-            {isRunning ? <Loader2 className="spin" size={18} /> : <Play size={18} />}
-            <span>{isRunning ? "分析中" : "开始"}</span>
+            {isRunning ? <Loader2 className="spin" size={18} /> : <FileText size={18} />}
+            <span>{isRunning ? "任务运行中" : `开始${scenario.shortLabel}`}</span>
           </button>
         </div>
       </form>

@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from threading import Thread
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
@@ -33,6 +33,52 @@ DEFAULT_HISTORY_LIMIT = 100
 DEFAULT_KNOWLEDGE_BASE_DIR = Path("memory") / "knowledge_base"
 ALLOWED_DATA_SUFFIXES = {".csv", ".xls", ".xlsx"}
 ALLOWED_KNOWLEDGE_SUFFIXES = {".txt", ".md", ".pdf"}
+
+WEB_ANALYSIS_STRATEGIES: dict[str, dict[str, object]] = {
+    "general": {
+        "quality_mode": "standard",
+        "latency_mode": "auto",
+        "vision_review_mode": "auto",
+        "max_steps": 6,
+        "max_reviews": 1,
+        "vision_max_images": 3,
+        "vision_max_image_side": 1024,
+        "use_rag": True,
+        "use_memory": True,
+        "task_type": "general_analysis",
+        "task_expectations": (
+            "inspect data quality before analysis",
+            "select methods that match the user's question and data",
+            "report validated findings, limitations, and reproducible evidence",
+        ),
+    },
+    "modeling": {
+        "quality_mode": "publication",
+        "latency_mode": "quality",
+        "vision_review_mode": "auto",
+        "max_steps": 10,
+        "max_reviews": 2,
+        "vision_max_images": 4,
+        "vision_max_image_side": 1280,
+        "use_rag": True,
+        "use_memory": True,
+        "task_type": "mathematical_modeling",
+        "task_expectations": (
+            "state objectives, constraints, variables, and assumptions",
+            "compare suitable models using only the current task data",
+            "validate the selected model and perform sensitivity analysis",
+            "produce reproducible code, figures, limitations, and report-ready materials",
+        ),
+    },
+}
+
+
+def resolve_web_analysis_strategy(scenario: str) -> dict[str, object] | None:
+    """Return the server-owned runtime strategy for a Web task scenario."""
+
+    normalized = str(scenario or "").strip().lower()
+    strategy = WEB_ANALYSIS_STRATEGIES.get(normalized)
+    return dict(strategy) if strategy is not None else None
 
 
 class HistoryQuestionRequest(BaseModel):
@@ -714,6 +760,7 @@ def create_app(project_root: Path | None = None) -> FastAPI:
     @app.post("/api/analysis/runs")
     async def analysis_runs(
         data_file: UploadFile = File(...),
+        scenario: Literal["", "general", "modeling"] = Form(""),
         query: str = Form(""),
         quality_mode: str = Form("standard"),
         latency_mode: str = Form("auto"),
@@ -731,6 +778,36 @@ def create_app(project_root: Path | None = None) -> FastAPI:
         memory_scope_label: str = Form(""),
         knowledge_uploads: list[UploadFile] | None = File(None),
     ) -> StreamingResponse:
+        web_strategy = resolve_web_analysis_strategy(scenario)
+        if web_strategy:
+            runtime_strategy = {
+                "max_steps": int(web_strategy["max_steps"]),
+                "max_reviews": int(web_strategy["max_reviews"]),
+                "quality_mode": str(web_strategy["quality_mode"]),
+                "latency_mode": str(web_strategy["latency_mode"]),
+                "vision_review_mode": str(web_strategy["vision_review_mode"]),
+                "vision_max_images": int(web_strategy["vision_max_images"]),
+                "vision_max_image_side": int(web_strategy["vision_max_image_side"]),
+                "use_rag": bool(web_strategy["use_rag"]),
+                "use_memory": bool(web_strategy["use_memory"]),
+                "task_type": str(web_strategy["task_type"]),
+                "task_expectations": tuple(web_strategy["task_expectations"]),
+            }
+        else:
+            runtime_strategy = {
+                "max_steps": _safe_int(max_steps, 6),
+                "max_reviews": max_reviews,
+                "quality_mode": quality_mode or "standard",
+                "latency_mode": latency_mode or "auto",
+                "vision_review_mode": vision_review_mode or "auto",
+                "vision_max_images": max(1, _safe_int(vision_max_images, 3)),
+                "vision_max_image_side": max(256, min(_safe_int(vision_max_image_side, 1024), 2048)),
+                "use_rag": _safe_bool(use_rag, True),
+                "use_memory": _safe_bool(use_memory, True),
+                "task_type": "",
+                "task_expectations": (),
+            }
+
         async def stream():
             logs: list[str] = []
             event_queue: queue.Queue[tuple[str, object]] = queue.Queue()
@@ -779,18 +856,20 @@ def create_app(project_root: Path | None = None) -> FastAPI:
                         output_dir=output_dir or DEFAULT_OUTPUT_DIR,
                         env_file=env_file or None,
                         agent_name=agent_name or "Advanced Data Analyst",
-                        max_steps=_safe_int(max_steps, 6),
-                        max_reviews=max_reviews,
-                        quality_mode=quality_mode or "standard",
-                        latency_mode=latency_mode or "auto",
-                        vision_review_mode=vision_review_mode or "auto",
-                        vision_max_images=max(1, _safe_int(vision_max_images, 3)),
-                        vision_max_image_side=max(256, min(_safe_int(vision_max_image_side, 1024), 2048)),
+                        max_steps=runtime_strategy["max_steps"],
+                        max_reviews=runtime_strategy["max_reviews"],
+                        quality_mode=runtime_strategy["quality_mode"],
+                        latency_mode=runtime_strategy["latency_mode"],
+                        vision_review_mode=runtime_strategy["vision_review_mode"],
+                        vision_max_images=runtime_strategy["vision_max_images"],
+                        vision_max_image_side=runtime_strategy["vision_max_image_side"],
                         event_handler=handle_event,
                         knowledge_paths=tuple(knowledge_paths),
-                        use_rag=_safe_bool(use_rag, True),
-                        use_memory=_safe_bool(use_memory, True),
+                        use_rag=runtime_strategy["use_rag"],
+                        use_memory=runtime_strategy["use_memory"],
                         memory_scope_key=memory_scope_key,
+                        task_type=runtime_strategy["task_type"],
+                        task_expectations=runtime_strategy["task_expectations"],
                     )
                     event_queue.put(("result", result))
                 except Exception as exc:  # pragma: no cover - covered through API tests with mock

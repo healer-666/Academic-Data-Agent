@@ -98,20 +98,12 @@ export function useWorkspaceController() {
 
     const formData = new FormData();
     formData.append("data_file", dataFile);
+    formData.append("scenario", form.scenario);
     formData.append("query", form.query);
-    formData.append("quality_mode", form.qualityMode);
-    formData.append("latency_mode", form.latencyMode);
-    formData.append("vision_review_mode", form.visionReviewMode);
-    formData.append("max_steps", form.maxSteps);
-    formData.append("max_reviews", form.maxReviews);
-    formData.append("vision_max_images", form.visionMaxImages);
-    formData.append("vision_max_image_side", form.visionMaxImageSide);
     formData.append("output_dir", form.outputDir || "outputs");
     formData.append("agent_name", form.agentName);
     formData.append("env_file", form.envFile);
     formData.append("session_label", form.sessionLabel);
-    formData.append("use_rag", String(form.useRag));
-    formData.append("use_memory", String(form.useMemory));
     formData.append("memory_scope_label", form.memoryScopeLabel);
     knowledgeFiles.forEach((file) => formData.append("knowledge_uploads", file));
 

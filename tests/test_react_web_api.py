@@ -22,9 +22,10 @@ except ModuleNotFoundError:  # pragma: no cover - dependency is declared in requ
     TestClient = None
 
 if TestClient is not None:
-    from data_analysis_agent.web.api import create_app
+    from data_analysis_agent.web.api import create_app, resolve_web_analysis_strategy
 else:  # pragma: no cover
     create_app = None
+    resolve_web_analysis_strategy = None
 
 
 @unittest.skipIf(TestClient is None, "fastapi is not installed in this environment")
@@ -222,6 +223,20 @@ class ReactWebApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["ok"])
 
+    def test_web_scenario_strategies_are_server_owned(self):
+        general = resolve_web_analysis_strategy("general")
+        modeling = resolve_web_analysis_strategy("modeling")
+
+        self.assertEqual(general["task_type"], "general_analysis")
+        self.assertEqual(general["quality_mode"], "standard")
+        self.assertEqual(general["max_reviews"], 1)
+        self.assertEqual(modeling["task_type"], "mathematical_modeling")
+        self.assertEqual(modeling["quality_mode"], "publication")
+        self.assertEqual(modeling["latency_mode"], "quality")
+        self.assertEqual(modeling["max_reviews"], 2)
+        self.assertGreater(len(modeling["task_expectations"]), len(general["task_expectations"]))
+        self.assertIsNone(resolve_web_analysis_strategy(""))
+
     def test_workspace_and_history_detail(self):
         run_dir = self._make_outputs_run()
 
@@ -316,6 +331,61 @@ class ReactWebApiTests(unittest.TestCase):
         self.assertIn('"claim_support_rate": 1.0', payload)
         self.assertIn('"interactiveReportAvailable": true', payload)
         self.assertIn('"figureCount": 1', payload)
+
+    def test_general_and_modeling_scenarios_submit_end_to_end(self):
+        expectations = {
+            "general": {
+                "task_type": "general_analysis",
+                "quality_mode": "standard",
+                "latency_mode": "auto",
+                "max_steps": 6,
+                "max_reviews": 1,
+            },
+            "modeling": {
+                "task_type": "mathematical_modeling",
+                "quality_mode": "publication",
+                "latency_mode": "quality",
+                "max_steps": 10,
+                "max_reviews": 2,
+            },
+        }
+
+        for scenario, expected in expectations.items():
+            with self.subTest(scenario=scenario):
+                run_dir = PROJECT_ROOT / "outputs" / f"run_{scenario}_{uuid.uuid4().hex}"
+                self.addCleanup(lambda path=run_dir: shutil.rmtree(path, ignore_errors=True))
+                captured: dict[str, object] = {}
+
+                def fake_run_analysis(*args, **kwargs):
+                    captured.update(kwargs)
+                    kwargs["event_handler"]("analysis_started", {"analysis_round": 1})
+                    return self._fake_result(run_dir)
+
+                files = {"data_file": ("sample.csv", b"a,b\n1,2\n", "text/csv")}
+                data = {
+                    "scenario": scenario,
+                    "query": "demo query",
+                    # These conflicting values verify that a Web scenario owns its runtime strategy.
+                    "quality_mode": "draft",
+                    "latency_mode": "fast",
+                    "vision_review_mode": "off",
+                    "max_steps": "2",
+                    "max_reviews": "0",
+                    "use_rag": "false",
+                    "use_memory": "false",
+                    "output_dir": "outputs",
+                }
+                with patch("data_analysis_agent.web.api.run_analysis", side_effect=fake_run_analysis):
+                    with self.client.stream("POST", "/api/analysis/runs", data=data, files=files) as response:
+                        payload = response.read().decode("utf-8")
+
+                self.assertEqual(response.status_code, 200)
+                self.assertIn("event: result", payload)
+                for key, value in expected.items():
+                    self.assertEqual(captured[key], value)
+                self.assertTrue(captured["use_rag"])
+                self.assertTrue(captured["use_memory"])
+                self.assertTrue(captured["task_expectations"])
 
 
 if __name__ == "__main__":
