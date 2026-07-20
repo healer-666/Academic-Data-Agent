@@ -12,7 +12,13 @@ export default function WorkspaceShell({ controller }) {
   const { navigation, workspace: workspaceState, analysis, history } = controller;
   const { activeView, setActiveView, sidebarCollapsed, setSidebarCollapsed, mobileSidebarOpen, setMobileSidebarOpen } = navigation;
   const { data: workspace, error: workspaceError, loading: workspaceLoading, refresh: refreshWorkspace } = workspaceState;
-  const { form, setForm, dataFile, setDataFile, knowledgeFiles, setKnowledgeFiles, isRunning, status, logs, result, submit: submitAnalysis } = analysis;
+  const {
+    form, setForm, dataFile, setDataFile, knowledgeFiles, setKnowledgeFiles,
+    problemFile, setProblemFile, modelingDataFiles, setModelingDataFiles,
+    modelingAttachments, setModelingAttachments, modelingPackage,
+    modelingBusy, modelingError, inspectModelingPackage, saveModelingReview, resetModelingPackage,
+    isRunning, status, logs, result, submit: submitAnalysis,
+  } = analysis;
   const {
     selectedRunId, setSelectedRunId, detail: historyDetail, loadingRunId: historyLoadingRunId,
     qaQuestion, setQaQuestion, qaMode, setQaMode, qaSelected, setQaSelected,
@@ -116,6 +122,18 @@ export default function WorkspaceShell({ controller }) {
               setDataFile={setDataFile}
               knowledgeFiles={knowledgeFiles}
               setKnowledgeFiles={setKnowledgeFiles}
+              problemFile={problemFile}
+              setProblemFile={setProblemFile}
+              modelingDataFiles={modelingDataFiles}
+              setModelingDataFiles={setModelingDataFiles}
+              modelingAttachments={modelingAttachments}
+              setModelingAttachments={setModelingAttachments}
+              modelingPackage={modelingPackage}
+              modelingBusy={modelingBusy}
+              modelingError={modelingError}
+              onInspectModeling={inspectModelingPackage}
+              onSaveModelingReview={saveModelingReview}
+              onResetModeling={resetModelingPackage}
               isRunning={isRunning}
               onSubmit={submitAnalysis}
             />

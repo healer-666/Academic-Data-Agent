@@ -21,7 +21,7 @@ export const ANALYSIS_SCENARIOS = {
     label: "数学建模项目",
     shortLabel: "数学建模",
     description: "面向数据密集型竞赛题，强化模型假设、验证、敏感性分析和材料组织。",
-    inputHint: "上传一份主要 CSV 或 Excel 数据，并将赛题说明、约束和附件作为项目资料加入。",
+    inputHint: "上传赛题说明、多份 CSV 或 Excel 数据和必要附件；系统会先形成可检查的资料包。",
     queryPlaceholder: "例如：赛题目标和约束是什么？需要建立哪些模型？如何验证并分析方案稳定性？",
     defaultQuery:
       "请围绕赛题目标分析当前数据：说明假设与数据操作，建立并比较适用模型，完成验证和敏感性分析，给出限制及可复现材料。",

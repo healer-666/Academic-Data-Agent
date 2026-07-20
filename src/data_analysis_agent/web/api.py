@@ -24,6 +24,7 @@ from pydantic import BaseModel, SecretStr
 from ..agent_runner import run_analysis
 from ..history_qa import answer_history_question
 from ..memory import derive_memory_scope_key
+from ..modeling_workspace import ModelingWorkspace, ModelingWorkspaceError
 from .history import RunHistoryEntry, find_run_history, scan_run_history
 from .model_settings import (
     ModelSettingsInput,
@@ -40,6 +41,10 @@ DEFAULT_HISTORY_LIMIT = 100
 DEFAULT_KNOWLEDGE_BASE_DIR = Path("memory") / "knowledge_base"
 ALLOWED_DATA_SUFFIXES = {".csv", ".xls", ".xlsx"}
 ALLOWED_KNOWLEDGE_SUFFIXES = {".txt", ".md", ".pdf"}
+ALLOWED_MODELING_PROBLEM_SUFFIXES = {".txt", ".md", ".pdf"}
+ALLOWED_MODELING_ATTACHMENT_SUFFIXES = {
+    ".txt", ".md", ".pdf", ".doc", ".docx", ".png", ".jpg", ".jpeg", ".csv", ".xls", ".xlsx"
+}
 
 WEB_ANALYSIS_STRATEGIES: dict[str, dict[str, object]] = {
     "general": {
@@ -109,6 +114,14 @@ class ModelSettingsRequest(BaseModel):
             api_key=self.apiKey.get_secret_value(),
             timeout=self.timeout,
         )
+
+
+class ModelingPackageUpdateRequest(BaseModel):
+    primaryTableId: str | None = None
+    tableLabels: dict[str, str] | None = None
+    relationships: list[dict[str, Any]] | None = None
+    relationshipNotes: str | None = None
+    confirmed: bool | None = None
 
 
 def _json_default(value: object) -> object:
@@ -710,6 +723,7 @@ def create_app(project_root: Path | None = None) -> FastAPI:
     root = (project_root or PROJECT_ROOT).resolve()
     app = FastAPI(title="Academic Data Agent React API", version="1.0.0")
     app.state.model_settings = ModelSettingsStore(root / ".env")
+    app.state.modeling_workspace = ModelingWorkspace(root / "outputs" / "modeling_packages")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -824,6 +838,67 @@ def create_app(project_root: Path | None = None) -> FastAPI:
         if not resolved.exists() or not resolved.is_file():
             raise HTTPException(status_code=404, detail="File not found")
         return FileResponse(resolved, filename=resolved.name)
+
+    @app.post("/api/modeling/packages")
+    async def create_modeling_package(
+        problem_file: UploadFile = File(...),
+        data_files: list[UploadFile] = File(...),
+        attachments: list[UploadFile] | None = File(None),
+    ) -> dict[str, object]:
+        package_id = build_session_id("modeling")
+        uploads_root = root / "outputs" / "modeling_packages" / package_id / "uploads"
+        try:
+            problem_path = await _save_upload(
+                problem_file,
+                uploads_root / "problem" / _safe_upload_name(problem_file.filename, "problem.md"),
+                ALLOWED_MODELING_PROBLEM_SUFFIXES,
+            )
+            saved_data_paths: list[Path] = []
+            for index, upload in enumerate(data_files, start=1):
+                if not upload.filename:
+                    continue
+                safe_name = _safe_upload_name(upload.filename, f"data-{index}.csv")
+                saved_data_paths.append(
+                    await _save_upload(upload, uploads_root / "data" / f"{index:02d}" / safe_name, ALLOWED_DATA_SUFFIXES)
+                )
+            saved_attachment_paths: list[Path] = []
+            for index, upload in enumerate(attachments or [], start=1):
+                if not upload.filename:
+                    continue
+                safe_name = _safe_upload_name(upload.filename, f"attachment-{index}.pdf")
+                saved_attachment_paths.append(
+                    await _save_upload(
+                        upload,
+                        uploads_root / "attachments" / f"{index:02d}" / safe_name,
+                        ALLOWED_MODELING_ATTACHMENT_SUFFIXES,
+                    )
+                )
+            return app.state.modeling_workspace.create(
+                package_id,
+                problem_path=problem_path,
+                data_paths=saved_data_paths,
+                attachment_paths=saved_attachment_paths,
+            )
+        except (HTTPException, ModelingWorkspaceError) as exc:
+            detail = exc.detail if isinstance(exc, HTTPException) else str(exc)
+            raise HTTPException(status_code=400, detail=detail) from None
+
+    @app.get("/api/modeling/packages/{package_id}")
+    async def get_modeling_package(package_id: str) -> dict[str, object]:
+        try:
+            return app.state.modeling_workspace.load(package_id)
+        except ModelingWorkspaceError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from None
+
+    @app.patch("/api/modeling/packages/{package_id}")
+    async def update_modeling_package(
+        package_id: str,
+        payload: ModelingPackageUpdateRequest,
+    ) -> dict[str, object]:
+        try:
+            return app.state.modeling_workspace.update(package_id, payload.model_dump(exclude_none=True))
+        except ModelingWorkspaceError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from None
 
     @app.post("/api/analysis/runs")
     async def analysis_runs(

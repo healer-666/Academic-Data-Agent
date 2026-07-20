@@ -17,6 +17,7 @@ logs/
 Co-creation-projects/
 frontend/node_modules/
 frontend/dist/
+.playwright-cli/
 
 .claude/
 data/external/dabench/

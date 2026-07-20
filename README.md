@@ -149,6 +149,7 @@ Detailed reports:
 - [DABench public benchmark report](./docs/dabench_public_benchmark_report.md)
 - [DataSciBench formal comparison](./docs/datascibench_formal_comparison_local_reproduction.md)
 - [Maintainer competition case extraction pipeline](./docs/case-extraction-pipeline.md)
+- [Mathematical modeling problem workspace](./docs/modeling-problem-workspace.md)
 - [DataSciBench clean ablation report](./docs/datascibench_clean_ablation_20260520.md)
 - [DataSciBench scorer readiness notes](./docs/datascibench_official_eval_readiness.md)
 
