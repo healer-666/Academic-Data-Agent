@@ -1186,6 +1186,7 @@ def run_analysis(
     task_expectations: Iterable[str] = (),
     symbolic_profile: str = "full",
     lineage_contract: dict[str, Any] | None = None,
+    runtime_config_override: RuntimeConfig | None = None,
 ) -> AnalysisRunResult:
     """Run the full data analysis workflow."""
 
@@ -1201,7 +1202,7 @@ def run_analysis(
 
     _emit_event(event_recorder.emit, "config_loading")
     config_started_at = time.perf_counter()
-    runtime_config: RuntimeConfig = load_runtime_config(env_file=env_file)
+    runtime_config: RuntimeConfig = runtime_config_override or load_runtime_config(env_file=env_file)
     _accumulate_duration(timing_breakdown, "config_load_duration_ms", _elapsed_ms(config_started_at))
 
     resolved_quality_mode = _resolve_quality_mode(quality_mode)

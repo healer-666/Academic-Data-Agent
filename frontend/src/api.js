@@ -48,6 +48,57 @@ export async function fetchWorkspace(outputDir = "outputs") {
   return normalizeWorkspace(await readJson(response), outputDir);
 }
 
+export async function fetchModelSettings() {
+  const response = await fetch(apiUrl("/api/settings/model"), {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  const payload = await readJson(response);
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.message || `模型配置加载失败：${response.status}`);
+  }
+  return payload;
+}
+
+export async function saveModelSettings(settings) {
+  const response = await fetch(apiUrl("/api/settings/model"), {
+    method: "PUT",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  const payload = await readJson(response);
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.message || `模型配置保存失败：${response.status}`);
+  }
+  return payload;
+}
+
+export async function clearModelSettings() {
+  const response = await fetch(apiUrl("/api/settings/model"), {
+    method: "DELETE",
+    headers: { Accept: "application/json" },
+  });
+  const payload = await readJson(response);
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.message || `模型配置清除失败：${response.status}`);
+  }
+  return payload;
+}
+
+export async function testModelConnection(settings) {
+  const options = {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+  };
+  if (settings) options.body = JSON.stringify(settings);
+  const response = await fetch(apiUrl("/api/settings/model/test"), options);
+  const payload = await readJson(response);
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.message || `模型连接测试失败：${response.status}`);
+  }
+  return payload;
+}
+
 export async function fetchHistoryRun(runId, outputDir = "outputs") {
   const response = await fetch(
     apiUrl(`/api/history/runs/${encodeURIComponent(runId)}?output_dir=${encodeURIComponent(outputDir)}`),

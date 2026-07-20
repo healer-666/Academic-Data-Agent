@@ -223,6 +223,93 @@ class ReactWebApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["ok"])
 
+    def test_model_settings_status_save_test_and_clear_never_expose_key(self):
+        secret = f"session-{uuid.uuid4().hex}"
+        settings = {
+            "modelId": "demo-model",
+            "baseUrl": "https://models.example.test/v1",
+            "apiKey": secret,
+            "timeout": 30,
+        }
+
+        save_response = self.client.put("/api/settings/model", json=settings)
+        self.assertEqual(save_response.status_code, 200)
+        self.assertEqual(save_response.json()["source"], "web")
+        self.assertNotIn(secret, save_response.text)
+
+        with (
+            patch("data_analysis_agent.web.api.test_model_connection", return_value="连接成功。") as connection,
+            patch("data_analysis_agent.web.api.run_analysis") as analysis,
+        ):
+            test_response = self.client.post(
+                "/api/settings/model/test",
+                headers={"Content-Type": "application/json"},
+            )
+
+        self.assertEqual(test_response.status_code, 200)
+        self.assertNotIn(secret, test_response.text)
+        connection.assert_called_once()
+        analysis.assert_not_called()
+
+        status_response = self.client.get("/api/settings/model")
+        self.assertNotIn(secret, status_response.text)
+        self.assertEqual(status_response.json()["connectionStatus"], "connected")
+
+        clear_response = self.client.delete("/api/settings/model")
+        self.assertEqual(clear_response.status_code, 200)
+        self.assertNotEqual(clear_response.json()["source"], "web")
+        self.assertNotIn(secret, clear_response.text)
+
+    def test_saved_model_settings_are_passed_to_analysis_without_leaking(self):
+        secret = f"session-{uuid.uuid4().hex}"
+        settings = {
+            "modelId": "demo-model",
+            "baseUrl": "https://models.example.test/v1",
+            "apiKey": secret,
+            "timeout": 30,
+        }
+        self.assertEqual(self.client.put("/api/settings/model", json=settings).status_code, 200)
+
+        run_dir = PROJECT_ROOT / "outputs" / f"run_settings_{uuid.uuid4().hex}"
+        self.addCleanup(lambda: shutil.rmtree(run_dir, ignore_errors=True))
+        captured: dict[str, object] = {}
+
+        def fake_run_analysis(*args, **kwargs):
+            captured.update(kwargs)
+            return self._fake_result(run_dir)
+
+        files = {"data_file": ("sample.csv", b"a,b\n1,2\n", "text/csv")}
+        with patch("data_analysis_agent.web.api.run_analysis", side_effect=fake_run_analysis):
+            with self.client.stream("POST", "/api/analysis/runs", files=files) as response:
+                payload = response.read().decode("utf-8")
+
+        self.assertEqual(response.status_code, 200)
+        runtime_config = captured["runtime_config_override"]
+        self.assertEqual(runtime_config.model_id, "demo-model")
+        self.assertEqual(runtime_config.api_key, secret)
+        self.assertNotIn(secret, payload)
+
+    def test_analysis_errors_redact_saved_api_key(self):
+        secret = f"session-{uuid.uuid4().hex}"
+        settings = {
+            "modelId": "demo-model",
+            "baseUrl": "https://models.example.test/v1",
+            "apiKey": secret,
+        }
+        self.client.put("/api/settings/model", json=settings)
+
+        files = {"data_file": ("sample.csv", b"a,b\n1,2\n", "text/csv")}
+        with patch(
+            "data_analysis_agent.web.api.run_analysis",
+            side_effect=RuntimeError(f"provider rejected {secret}"),
+        ):
+            with self.client.stream("POST", "/api/analysis/runs", files=files) as response:
+                payload = response.read().decode("utf-8")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("[REDACTED]", payload)
+        self.assertNotIn(secret, payload)
+
     def test_web_scenario_strategies_are_server_owned(self):
         general = resolve_web_analysis_strategy("general")
         modeling = resolve_web_analysis_strategy("modeling")
