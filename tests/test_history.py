@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import unittest
 import uuid
@@ -12,7 +13,7 @@ SRC_PATH = PROJECT_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from data_analysis_agent.web.history import build_history_choices, load_history_record, scan_run_history
+from data_analysis_agent.web.history import find_run_history, scan_run_history
 
 
 class HistoryTests(unittest.TestCase):
@@ -39,7 +40,7 @@ class HistoryTests(unittest.TestCase):
         (run_dir / "figures" / "review_round_1" / "chart.png").write_text("fake-image", encoding="utf-8")
         (run_dir / "logs" / "document_ingestion.json").write_text("{}", encoding="utf-8")
         (run_dir / "final_report.md").write_text(
-            "# Report\n\n![图表](outputs/{}/figures/review_round_1/chart.png)".format(name),
+            "# Report\n\n![chart](outputs/{}/figures/review_round_1/chart.png)".format(name),
             encoding="utf-8",
         )
         if with_trace:
@@ -54,12 +55,11 @@ class HistoryTests(unittest.TestCase):
                 "document_ingestion": {
                     "input_kind": "pdf",
                     "status": "completed",
-                    "summary": "PDF 主表已选定。",
+                    "summary": "PDF table selected.",
                     "candidate_table_count": 2,
                     "selected_table_id": "table_01",
                     "selected_table_shape": [7, 5],
                     "pdf_multi_table_mode": True,
-                    "log_path": (run_dir / "logs" / "document_ingestion.json").resolve().as_posix(),
                 },
                 "telemetry": {
                     "domain": "finance",
@@ -76,7 +76,7 @@ class HistoryTests(unittest.TestCase):
                 "vision_review_history": [
                     {
                         "status": "completed",
-                        "summary": "图表布局清晰。",
+                        "summary": "Chart layout is clear.",
                     }
                 ],
                 "step_traces": [
@@ -110,34 +110,44 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(entries[0].report_path.name, "final_report.md")
         self.assertIsNone(entries[0].trace_path)
 
-    def test_build_history_choices_and_load_record_support_empty_state(self):
+    def test_scan_run_history_supports_empty_state(self):
         case_dir = self._workspace_case_dir()
 
-        choices, selected = build_history_choices(case_dir)
-        details = load_history_record(selected, outputs_root=case_dir)
+        entries = scan_run_history(case_dir)
 
-        self.assertEqual(choices, [])
-        self.assertIsNone(selected)
-        self.assertIn("当前还没有可浏览的历史运行记录", details[0])
+        self.assertEqual(entries, [])
 
-    def test_load_history_record_normalizes_relative_report_images_and_shows_table_metadata(self):
+    def test_scan_run_history_reads_report_figures_and_table_metadata(self):
         case_dir = self._workspace_case_dir()
         run_dir = self._create_run_dir(case_dir, "run_20260316_130000", timestamp="2026-03-16T13:00:00")
 
-        details = load_history_record(run_dir.as_posix(), outputs_root=case_dir)
+        entries = scan_run_history(case_dir)
+        entry = entries[0]
 
-        self.assertIn("/file=", details[1])
-        self.assertIn("chart.png", details[1])
-        self.assertEqual(len(details[2]), 1)
-        self.assertIn("候选表数量", details[0])
-        self.assertIn("table_01", details[0])
-        self.assertIn("PDF 多表综合", details[0])
-        self.assertIn("阶段审计", details[0])
-        self.assertIn("文档解析日志", details[3])
-        self.assertIn("No later Python step explicitly reloaded cleaned_data.csv.", details[3])
-        self.assertTrue(str(details[4]).endswith("final_report.md"))
-        self.assertTrue(str(details[5]).endswith("agent_trace.json"))
-        self.assertTrue(str(details[6]).endswith("cleaned_data.csv"))
+        self.assertEqual(entry.run_dir, run_dir.resolve())
+        self.assertEqual(len(entry.figure_paths), 1)
+        self.assertEqual(entry.selected_table_id, "table_01")
+        self.assertEqual(entry.selected_table_shape, (7, 5))
+        self.assertTrue(entry.pdf_multi_table_mode)
+        self.assertEqual(entry.stage_contract_status, "failed")
+        self.assertIn("No later Python step explicitly reloaded cleaned_data.csv.", entry.stage_contract_findings)
+        self.assertTrue(str(entry.report_path).endswith("final_report.md"))
+        self.assertTrue(str(entry.trace_path).endswith("agent_trace.json"))
+        self.assertTrue(str(entry.cleaned_data_path).endswith("cleaned_data.csv"))
+
+    def test_scan_run_history_limit_and_direct_lookup(self):
+        case_dir = self._workspace_case_dir()
+        self._create_run_dir(case_dir, "run_20260316_140000", timestamp="2026-03-16T14:00:00")
+        second = self._create_run_dir(case_dir, "run_20260316_150000", timestamp="2026-03-16T15:00:00")
+        os.utime(second, (second.stat().st_atime, second.stat().st_mtime + 10))
+
+        entries = scan_run_history(case_dir, limit=1)
+        direct = find_run_history(second.name, case_dir)
+
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].run_dir.name, second.name)
+        self.assertEqual(direct.run_dir.name, second.name)
+        self.assertIsNone(find_run_history("../outside", case_dir))
 
 
 if __name__ == "__main__":

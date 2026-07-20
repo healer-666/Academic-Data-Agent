@@ -176,7 +176,11 @@ python main.py --data data/simple_data.xlsx
 ### 启动 Web 工作台
 
 ```bash
-python gradio_app.py
+cd frontend
+npm install
+npm run build
+cd ..
+python web_app.py
 ```
 
 ---

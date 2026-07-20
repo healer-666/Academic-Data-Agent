@@ -7,7 +7,6 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
-from urllib.parse import quote
 
 
 _TELEMETRY_PATTERN = re.compile(r"\s*<telemetry>\s*(\{[\s\S]*?\})\s*</telemetry>\s*$", re.IGNORECASE)
@@ -314,29 +313,6 @@ def normalize_markdown_image_paths(
             base_dir=base_dir,
         )
         return f"![{alt_text}]({normalized_target})"
-
-    return _MARKDOWN_IMAGE_PATTERN.sub(replace, report_markdown)
-
-
-def convert_markdown_images_to_gradio_urls(
-    report_markdown: str,
-    *,
-    project_root: str | Path | None = None,
-    base_dir: str | Path | None = None,
-) -> str:
-    """Convert Markdown image references to Gradio-served file URLs."""
-
-    def replace(match: re.Match[str]) -> str:
-        alt_text = match.group(1)
-        raw_target = match.group(2).strip()
-        absolute_target = _resolve_markdown_asset_path(
-            raw_target,
-            project_root=project_root,
-            base_dir=base_dir,
-        )
-        # Gradio 4.x serves local files through the /file=... route.
-        gradio_target = f"/file={quote(absolute_target, safe='/:')}"
-        return f"![{alt_text}]({gradio_target})"
 
     return _MARKDOWN_IMAGE_PATTERN.sub(replace, report_markdown)
 

@@ -28,7 +28,9 @@ def run_doctor() -> tuple[DoctorCheck, ...]:
     return (
         DoctorCheck("hello_agents", HELLO_AGENTS_AVAILABLE, "ok" if HELLO_AGENTS_AVAILABLE else "missing"),
         _check_import("rich"),
-        _check_import("gradio"),
+        _check_import("fastapi"),
+        _check_import("uvicorn"),
+        _check_import("multipart"),
         _check_import("pdfplumber"),
         _check_import("chromadb"),
         DoctorCheck(

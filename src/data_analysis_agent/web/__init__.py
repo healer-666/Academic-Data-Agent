@@ -1,21 +1,14 @@
-"""Gradio-based web demo layer with lazy exports."""
+"""FastAPI web workspace exports."""
 
 from __future__ import annotations
 
 from importlib import import_module
 from typing import Any
 
-__all__ = [
-    "build_demo",
-    "default_max_reviews_for_quality",
-    "stream_analysis_session",
-]
-
+__all__ = ["create_app"]
 
 _EXPORT_MAP = {
-    "build_demo": ("data_analysis_agent.web.app", "build_demo"),
-    "default_max_reviews_for_quality": ("data_analysis_agent.web.service", "default_max_reviews_for_quality"),
-    "stream_analysis_session": ("data_analysis_agent.web.service", "stream_analysis_session"),
+    "create_app": ("data_analysis_agent.web.api", "create_app"),
 }
 
 
