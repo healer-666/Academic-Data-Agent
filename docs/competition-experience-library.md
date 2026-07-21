@@ -1,16 +1,17 @@
 # Versioned competition experience library
 
-Issue #12 packages approved case cards, retrieval indexes, and modeling skills as a separately versioned competition experience library. This first phase implements the lifecycle and ships only preview fixtures; real historical competition materials will be added later.
+Issue #12 packages approved case cards, retrieval indexes, and modeling skills as a separately versioned competition experience library. The default bundled library is now the first curated release; raw historical files remain in the private maintainer workspace.
 
 ## Current content status
 
-The bundled version is `0.1.0-preview`. Its manifest explicitly declares `content_status: preview` and lists `representative-method-fixtures` as its only source. It contains:
+The bundled version is `1.0.0` with `content_status: curated`. It contains:
 
-- the representative modeling-skill catalog from Issue #11;
-- an empty keyword retrieval index;
-- no real historical case cards, problems, datasets, or papers.
+- the mathematical-modeling skill catalog from Issue #11;
+- five source-backed retrieval chunks for the 2022 CUMCM C problem;
+- the approved, structured `cumcm-2022-c` case card derived from the problem, its workbook, and papers C155 and C229;
+- a checksummed manifest and source inventory.
 
-It exists so ordinary installations can exercise the complete resolution path without importing files. It must not be described as a curated historical experience library. The first real release should use `content_status: curated` and include at least one approved case card; the planned `v1.0.0` should contain the agreed first batch of reviewed cases.
+Ordinary installations can use this content without importing historical files. The original problem PDF, workbook, paper images, and OCR text are not bundled. The earlier `0.1.0-preview` directory remains in the repository as a lifecycle fixture but is no longer the default runtime fallback.
 
 ## Package contract
 
@@ -58,12 +59,10 @@ python experience_library.py status
 
 The built-in library directory is separate from `memory/knowledge_base`, `memory/project_memory`, and `memory/failure_memory`. Install, upgrade, and rollback operations never write to those user-owned stores.
 
-For mathematical-modeling runs, the runtime resolves an installed active version first and otherwise uses the bundled preview. It validates the manifest and all artifact checksums before loading methods. If the active pointer, package, or skill catalog is missing or damaged, the run continues as general analysis without historical-case guidance. An explicitly supplied skill catalog remains strict and reports errors instead of silently degrading.
+For mathematical-modeling runs, the runtime resolves an installed active version first and otherwise uses bundled `1.0.0`. It validates the manifest and all artifact checksums before loading methods. If the active pointer, package, or skill catalog is missing or damaged, the run continues as general analysis without historical-case guidance. An explicitly supplied skill catalog remains strict and reports errors instead of silently degrading.
 
-## Remaining work for Issue #12
+## Release maintenance
 
-- upload the first real historical problems, data attachments, and high-quality papers;
-- generate and approve case cards through the Issue #10 pipeline;
-- rebuild modeling skills from the real cross-case corpus;
-- create a populated retrieval index;
-- publish and test the first curated experience-library release.
+New historical materials must first pass the Issue #10 extraction and approval gate. Publish only structured cards into a new semantic-version directory, rebuild the keyword index, copy the reviewed modeling-skill catalog, and regenerate `manifest.json` with `experience_library.py manifest`. Build and install a package in an isolated directory before changing the default bundled root.
+
+The next content release should add more reviewed cases and then rebuild modeling skills from the cross-case corpus. Never overwrite user knowledge or place raw problem files, datasets, papers, OCR text, or local paths in a bundled release.

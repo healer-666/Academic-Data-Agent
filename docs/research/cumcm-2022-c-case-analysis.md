@@ -103,4 +103,4 @@ C155 对每个成分轮流设为母序列，计算其余十三种成分的灰色
 - [C155 展示页面](https://dxs.moe.gov.cn/zx/a/hd_sxjm_sxjmlw_2022qgdxssxjmjslwzs/221106/1820281.shtml)
 - [C229 展示页面](https://dxs.moe.gov.cn/zx/a/hd_sxjm_sxjmlw_2022qgdxssxjmjslwzs_2022ctlw/230613/1843444.shtml)
 
-解析状态：赛题、三张附件表和两篇论文关键页已逐项核对；结构化案例目前为待人工审核草稿，尚未进入公开经验库。
+解析状态：赛题、三张附件表和两篇论文关键页已逐项核对；revision-002 已通过来源审核，脱敏案例卡已发布并纳入内置竞赛经验库 `1.0.0`。

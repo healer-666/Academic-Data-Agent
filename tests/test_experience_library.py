@@ -60,15 +60,33 @@ class ExperienceLibraryTests(unittest.TestCase):
             published_at="2026-07-20T00:00:00Z",
         )
 
-    def test_bundled_preview_is_available_without_user_import(self):
+    def test_bundled_curated_library_is_available_without_user_import(self):
         resolution = ExperienceLibraryManager(self._temp_dir() / "install", DEFAULT_BUNDLED_ROOT).resolve()
 
         self.assertEqual(resolution.status, "bundled")
-        self.assertEqual(resolution.version, "0.1.0-preview")
-        self.assertEqual(resolution.content_status, "preview")
+        self.assertEqual(resolution.version, "1.0.0")
+        self.assertEqual(resolution.content_status, "curated")
         self.assertTrue(resolution.skill_catalog_path.is_file())
         self.assertTrue(resolution.keyword_index_path.is_file())
-        self.assertEqual(resolution.case_card_paths, ())
+        self.assertEqual(len(resolution.case_card_paths), 1)
+        self.assertEqual(resolution.case_card_paths[0].name, "cumcm-2022-c.json")
+        self.assertEqual(len(resolution.source_inventory), 5)
+
+        keyword_index = json.loads(resolution.keyword_index_path.read_text(encoding="utf-8"))
+        self.assertEqual(keyword_index["schema_version"], "1.0")
+        self.assertEqual(len(keyword_index["chunks"]), 5)
+        self.assertTrue(all(chunk["case_id"] == "cumcm-2022-c" for chunk in keyword_index["chunks"]))
+        self.assertTrue(
+            all((resolution.library_root / chunk["artifact_path"]).is_file() for chunk in keyword_index["chunks"])
+        )
+
+        case_card_text = resolution.case_card_paths[0].read_text(encoding="utf-8")
+        case_card = json.loads(case_card_text)
+        self.assertEqual(case_card["case"]["id"], "cumcm-2022-c")
+        self.assertEqual(case_card["review"]["status"], "approved")
+        self.assertNotIn("_private_provenance", case_card)
+        self.assertNotIn("C:/dev/", case_card_text)
+        self.assertTrue(all(source["distribution"] == "metadata_only" for source in case_card["sources"]))
 
     def test_install_upgrade_and_rollback_preserve_versions_and_user_data(self):
         root = self._temp_dir()

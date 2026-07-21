@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0",
+  "chunks": [
+    {
+      "id": "cumcm-2022-c-overview",
+      "case_id": "cumcm-2022-c",
+      "title": "古代玻璃制品：问题与数据概览",
+      "keywords": [
+        "全国大学生数学建模竞赛",
+        "CUMCM",
+        "2022 C题",
+        "古代玻璃",
+        "高钾玻璃",
+        "铅钡玻璃",
+        "风化",
+        "化学成分"
+      ],
+      "text": "分析古代高钾玻璃与铅钡玻璃的表面风化、十四种化学成分、风化前成分预测、大类与亚类分类、未知样品鉴别和成分关联。附件含 58 件有标签文物、69 条已知检测记录和 8 件未知文物；成分总和应位于 85%—105%。",
+      "artifact_path": "cases/cumcm-2022-c.json",
+      "evidence_source_ids": ["problem", "data"]
+    },
+    {
+      "id": "cumcm-2022-c-compositional-data",
+      "case_id": "cumcm-2022-c",
+      "title": "成分数据清洗与变换",
+      "keywords": [
+        "成分数据",
+        "闭合运算",
+        "中心化对数比",
+        "clr",
+        "Aitchison",
+        "零值替换",
+        "乘法替换",
+        "缺失值"
+      ],
+      "text": "先按成分总和筛除无效记录，再关联文物与检测点。百分比成分具有定和约束，适合先处理未检测值和近零值，再闭合到 100% 并做 clr 变换。直接补零后做 clr 在数学上无定义，必须显式记录零值替换方案并做敏感性比较。",
+      "artifact_path": "cases/cumcm-2022-c.json",
+      "evidence_source_ids": ["data", "paper-c155", "paper-c229"]
+    },
+    {
+      "id": "cumcm-2022-c-classification",
+      "case_id": "cumcm-2022-c",
+      "title": "玻璃分类、聚类与未知样品",
+      "keywords": [
+        "决策树",
+        "PLS-DA",
+        "偏最小二乘",
+        "PbO",
+        "R型聚类",
+        "Q型聚类",
+        "k-means",
+        "亚类",
+        "未知样品"
+      ],
+      "text": "历史方案使用 PbO 决策树、PLS-DA、R/Q 型层次聚类和 k-means。两篇论文对未知样品的大类结论一致：A1、A6、A7 为高钾，A2、A3、A4、A5、A8 为铅钡。但论文给出的 PbO 阈值相差明显，历史阈值只能作为候选特征，不能硬编码复用。",
+      "artifact_path": "cases/cumcm-2022-c.json",
+      "evidence_source_ids": ["paper-c155", "paper-c229"]
+    },
+    {
+      "id": "cumcm-2022-c-weathering-association",
+      "case_id": "cumcm-2022-c",
+      "title": "风化关联与风化前成分预测",
+      "keywords": [
+        "卡方检验",
+        "Spearman",
+        "Dirichlet回归",
+        "风化前预测",
+        "成分回归",
+        "列联表"
+      ],
+      "text": "两篇论文均认为表面风化与玻璃类型有关，而与纹饰和颜色没有显著关系。风化前成分可在 clr 空间建趋势回归，或使用 Dirichlet 回归直接建模比例向量。对稀疏名义变量应优先采用合适的精确或 Monte Carlo 列联表检验。",
+      "artifact_path": "cases/cumcm-2022-c.json",
+      "evidence_source_ids": ["paper-c155", "paper-c229"]
+    },
+    {
+      "id": "cumcm-2022-c-validation-risks",
+      "case_id": "cumcm-2022-c",
+      "title": "验证、敏感性和复用风险",
+      "keywords": [
+        "交叉验证",
+        "敏感性分析",
+        "信息泄漏",
+        "分组切分",
+        "聚类稳定性",
+        "相关不等于因果"
+      ],
+      "text": "同一文物可能包含多个检测点，训练测试必须按文物分组，避免同一文物跨集合造成信息泄漏。分类应使用重复分组交叉验证和阈值置信区间；亚类没有外部真值，需要重采样稳定性与领域解释；灰色关联和 Pearson/Wilcoxon 衡量对象不同，且都不支持因果结论。",
+      "artifact_path": "cases/cumcm-2022-c.json",
+      "evidence_source_ids": ["data", "paper-c155", "paper-c229"]
+    }
+  ]
+}
