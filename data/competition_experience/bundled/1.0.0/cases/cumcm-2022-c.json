@@ -1,0 +1,322 @@
+{
+  "schema_version": "1.0",
+  "library_version": "cumcm-2022-c-r002",
+  "published_at": "2026-07-21T03:03:27.551797+00:00",
+  "case": {
+    "id": "cumcm-2022-c",
+    "competition": "高教社杯全国大学生数学建模竞赛",
+    "year": 2022,
+    "problem_number": "C",
+    "title": "古代玻璃制品的成分分析与鉴别",
+    "locale": "zh-CN"
+  },
+  "sources": [
+    {
+      "id": "problem",
+      "role": "problem_statement",
+      "title": "2022 年全国大学生数学建模竞赛 C 题",
+      "uri": "https://www.mcm.edu.cn/html_cn/node/388239ded4b057d37b7b8e51e33fe903.html",
+      "license": "competition-terms",
+      "distribution": "metadata_only",
+      "sha256": "573ee0f2865af13f8b2fbd12dab7f8efa68cf61ec6b8edf132a2120424480dbd"
+    },
+    {
+      "id": "data",
+      "role": "dataset",
+      "title": "2022 年 C 题附件数据",
+      "uri": "https://www.mcm.edu.cn/html_cn/node/388239ded4b057d37b7b8e51e33fe903.html",
+      "license": "competition-terms",
+      "distribution": "metadata_only",
+      "sha256": "ffb82a8e209a005f26883e115de3ddea42ab6e0a34986d312a52a3cea6b1063c"
+    },
+    {
+      "id": "paper-c155",
+      "role": "paper",
+      "title": "C155《基于成分数据的古代玻璃制品的成分分析与鉴别》",
+      "uri": "https://dxs.moe.gov.cn/zx/a/hd_sxjm_sxjmlw_2022qgdxssxjmjslwzs/221106/1820281.shtml",
+      "license": "citation-only",
+      "distribution": "metadata_only",
+      "sha256": "cd762f4bc900066ad9e723ba458ae0e11b921fc833d0a00d8b5159c07d1398eb"
+    },
+    {
+      "id": "paper-c229",
+      "role": "paper",
+      "title": "C229《基于成分数据分析的玻璃制品分析与分类》",
+      "uri": "https://dxs.moe.gov.cn/zx/a/hd_sxjm_sxjmlw_2022qgdxssxjmjslwzs_2022ctlw/230613/1843444.shtml",
+      "license": "citation-only",
+      "distribution": "metadata_only",
+      "sha256": "ce62557aa5aa633b45176844ca19059eefbe5ccea1d9aa365ffd79eec1d4c77e"
+    }
+  ],
+  "extraction": {
+    "problem_summary": "围绕古代高钾玻璃与铅钡玻璃，分析表面风化同类型、纹饰和颜色的关系，刻画风化前后十四种化学成分的统计规律并预测风化前成分；建立大类与亚类分类规则，鉴别 8 件未知样品并检验敏感性；最后比较两类玻璃内部化学成分的关联结构。题目规定检测成分总和在 85%—105% 的记录才视为有效。",
+    "data_operations": [
+      {
+        "name": "有效性筛选与样本关联",
+        "evidence_source_ids": [
+          "problem",
+          "data",
+          "paper-c155",
+          "paper-c229"
+        ],
+        "purpose": "按 85%—105% 总量规则剔除编号 15、17 两条无效检测记录，并把带部位或风化状态的检测点编号关联回 58 件文物的类型、纹饰、颜色和风化元数据。"
+      },
+      {
+        "name": "缺失和近零值处理",
+        "evidence_source_ids": [
+          "data",
+          "paper-c155",
+          "paper-c229"
+        ],
+        "purpose": "C155 将未检测成分补零且保留表单 1 的四个颜色缺失；C229 把未检测和四舍五入得到的零视为近零并做乘法替换，同时用众数和热卡方法补颜色。两种策略应在复用时作为可比较方案，而不是合并成同一处理。"
+      },
+      {
+        "name": "成分闭合与中心化对数比变换",
+        "evidence_source_ids": [
+          "paper-c155",
+          "paper-c229"
+        ],
+        "purpose": "将十四种化学成分闭合到总和 100%，再用 clr 变换解除定和约束，使回归、分类和聚类在欧氏空间中进行，并在预测后逆变换回比例。"
+      },
+      {
+        "name": "分层统计汇总",
+        "evidence_source_ids": [
+          "data",
+          "paper-c155",
+          "paper-c229"
+        ],
+        "purpose": "按玻璃类型和风化状态分成高钾风化、高钾未风化、铅钡风化、铅钡未风化四组，比较均值、离散程度和分布。"
+      }
+    ],
+    "models": [
+      {
+        "name": "风化关联检验",
+        "evidence_source_ids": [
+          "paper-c155",
+          "paper-c229"
+        ],
+        "purpose": "C155 对类型使用 Pearson 卡方、对稀疏的纹饰和颜色列联表使用 Yates 校正；C229 联用 Spearman 相关与卡方检验，判断风化是否同三类属性相关。",
+        "assumptions": [
+          "列联表中的文物观测相互独立。",
+          "显著性水平取 0.05。",
+          "对稀疏期望频数需要校正或采用更合适的精确检验。"
+        ]
+      },
+      {
+        "name": "风化前成分预测",
+        "evidence_source_ids": [
+          "paper-c155",
+          "paper-c229"
+        ],
+        "purpose": "C155 先用聚类构造风化变化次序，再在 clr 空间拟合成分趋势回归；C229 在单形几何下计算组均值，并以 Dirichlet 回归预测风化前比例。",
+        "assumptions": [
+          "风化样本间可提取出可用于逆推的稳定变化结构。",
+          "预测后的十四个成分应非负且总和为 100%。",
+          "组内样本足以估计多成分变化。"
+        ]
+      },
+      {
+        "name": "玻璃大类决策树",
+        "evidence_source_ids": [
+          "data",
+          "paper-c155",
+          "paper-c229"
+        ],
+        "purpose": "C155 分风化状态建立以 PbO 为唯一分裂特征的决策树；C229 在 clr 处理后建立统一决策树，并以 PLS-DA 复核主要判别成分。",
+        "assumptions": [
+          "训练数据中的高钾与铅钡标签可靠。",
+          "PbO 的分界在未知样本上仍稳定。",
+          "同一文物的多个检测点不会造成训练测试信息泄漏。"
+        ]
+      },
+      {
+        "name": "玻璃亚类聚类",
+        "evidence_source_ids": [
+          "paper-c155",
+          "paper-c229"
+        ],
+        "purpose": "C155 先对成分做 R 型聚类筛选代表变量，再对样本做 Q 型层次聚类；C229 对两类玻璃分别做 k-means，并用 PLS-DA 的 VIP 指标选择亚类特征。",
+        "assumptions": [
+          "欧氏或所选距离能表达 clr 数据的相似性。",
+          "每一大类内部存在可解释且相对稳定的三个亚类。",
+          "聚类数和初始化不会根本改变结论。"
+        ]
+      },
+      {
+        "name": "未知样品分类与亚类映射",
+        "evidence_source_ids": [
+          "data",
+          "paper-c155",
+          "paper-c229"
+        ],
+        "purpose": "用已训练的决策树或 PLS 回归判别 A1—A8 的大类，再用 Q 型聚类或亚类 PLS 模型核对和细分。",
+        "assumptions": [
+          "表单 3 与训练数据来自相同测量口径。",
+          "未知样品未超出训练样本的成分范围。"
+        ]
+      },
+      {
+        "name": "成分关联结构分析",
+        "evidence_source_ids": [
+          "paper-c155",
+          "paper-c229"
+        ],
+        "purpose": "C155 遍历母序列做灰色关联分析并比较关联系数离散程度；C229 分类型计算 Pearson 相关热力图，并对两组上三角相关系数做配对 Wilcoxon 检验。",
+        "assumptions": [
+          "灰色关联度或线性相关系数能代表题目所称的关联。",
+          "Wilcoxon 配对项在两类玻璃中含义一致。",
+          "相关不解释因果。"
+        ]
+      }
+    ],
+    "validation_methods": [
+      {
+        "name": "留出集分类评估",
+        "evidence_source_ids": [
+          "paper-c155",
+          "paper-c229"
+        ],
+        "purpose": "C155 采用 70%/30% 划分并报告训练、测试的精确率、召回率、准确率和 F1 均为 1；C229 将 67 条有效记录分为 47 条训练、20 条测试并报告 100% 正确率。"
+      },
+      {
+        "name": "随机扰动敏感性分析",
+        "evidence_source_ids": [
+          "paper-c155"
+        ],
+        "purpose": "C155 对 R 型聚类选出的代表性特征做随机比例扰动；各特征不改变聚类结果的容许范围主要落在 0.1—0.2。"
+      },
+      {
+        "name": "双模型一致性检查",
+        "evidence_source_ids": [
+          "paper-c155",
+          "paper-c229"
+        ],
+        "purpose": "C155 用决策树与 Q 型聚类交叉检查未知样品；C229 用决策树和 PLS 对 A1—A8 得到一致的大类结果。"
+      },
+      {
+        "name": "PLS 交叉验证",
+        "evidence_source_ids": [
+          "paper-c229"
+        ],
+        "purpose": "C229 以 CV-RMSEP 选择 3 个主成分用于未知样品大类预测，累计贡献率为 93%；亚类预测另以交叉验证选择 2 个主成分。"
+      },
+      {
+        "name": "关联结构显著性检验",
+        "evidence_source_ids": [
+          "paper-c229"
+        ],
+        "purpose": "C229 对两类玻璃相关矩阵的配对项进行 Wilcoxon 检验，报告 p=0.905。"
+      }
+    ],
+    "charts": [
+      {
+        "name": "分类型箱线图与风化前后成分环图",
+        "evidence_source_ids": [
+          "paper-c155",
+          "paper-c229"
+        ],
+        "purpose": "比较四组样本的中心、离散程度、异常值以及风化前后成分占比变化。"
+      },
+      {
+        "name": "PbO 决策树图",
+        "evidence_source_ids": [
+          "paper-c155",
+          "paper-c229"
+        ],
+        "purpose": "直观展示风化分层阈值或统一阈值如何把高钾和铅钡玻璃分开。"
+      },
+      {
+        "name": "R/Q 型层次聚类树和 k-means 聚类图",
+        "evidence_source_ids": [
+          "paper-c155",
+          "paper-c229"
+        ],
+        "purpose": "展示变量筛选、样本亚类划分和聚类数选择。"
+      },
+      {
+        "name": "PLS-DA 得分图、验证图与 VIP 图",
+        "evidence_source_ids": [
+          "paper-c229"
+        ],
+        "purpose": "检查两类玻璃是否分离、模型是否具有预测能力，并识别 PbO、K2O、BaO、SrO 等判别特征。"
+      },
+      {
+        "name": "灰色关联系数图与相关热力图",
+        "evidence_source_ids": [
+          "paper-c155",
+          "paper-c229"
+        ],
+        "purpose": "分别从关联度分布和线性相关矩阵观察十四种成分的内部关系。"
+      }
+    ],
+    "key_findings": [
+      {
+        "statement": "附件含 58 件有标签文物、69 条已知成分检测记录和 8 件未知文物；编号 15、17 的成分总和分别为 79.47% 和 71.89%，按题目规则应剔除，剩余 67 条有效。",
+        "evidence_source_ids": [
+          "problem",
+          "data",
+          "paper-c155",
+          "paper-c229"
+        ]
+      },
+      {
+        "statement": "两篇论文都判断表面风化与玻璃类型相关，而与纹饰、颜色不显著相关；C155 报告类型检验 p=0.009、纹饰 p=0.084、颜色 p=0.507，C229 的卡方结果分别为 0.024、0.085、0.325。",
+        "evidence_source_ids": [
+          "paper-c155",
+          "paper-c229"
+        ]
+      },
+      {
+        "statement": "C155 的 PbO 决策树按风化状态设置不同阈值：未风化样品 8.495%，风化样品 6.155%；C229 的统一规则为 PbO 大于 1.5 判铅钡，否则判高钾。阈值差异说明预处理和分层策略会显著影响可解释规则。",
+        "evidence_source_ids": [
+          "paper-c155",
+          "paper-c229"
+        ]
+      },
+      {
+        "statement": "两篇论文对 8 件未知样品的大类判断一致：A1、A6、A7 为高钾玻璃；A2、A3、A4、A5、A8 为铅钡玻璃。",
+        "evidence_source_ids": [
+          "data",
+          "paper-c155",
+          "paper-c229"
+        ]
+      },
+      {
+        "statement": "C229 的 PLS-DA 认为大类区分的重要特征为 PbO、K2O、BaO、SrO；亚类划分中，高钾使用 K2O、SiO2、CaO、SnO2、BaO，铅钡使用 P2O5、CuO、Na2O、Fe2O3，两类均取 3 个聚类。",
+        "evidence_source_ids": [
+          "paper-c229"
+        ]
+      },
+      {
+        "statement": "C229 将 A1、A6、A7 判为同一高钾亚类；在铅钡样品中 A2/A4 同类、A3/A8 同类、A5 属另一类。",
+        "evidence_source_ids": [
+          "paper-c229"
+        ]
+      },
+      {
+        "statement": "关联分析给出的表述并不相同：C155 观察到高钾灰色关联系数较集中、铅钡较分散；C229 对相关系数矩阵做配对 Wilcoxon 检验得到 p=0.905，认为两类整体关联结构无显著差异。两者使用的关联定义不同，不能直接视为相互否定或相互验证。",
+        "evidence_source_ids": [
+          "paper-c155",
+          "paper-c229"
+        ]
+      }
+    ],
+    "limitations": [
+      "样本量小且同一文物存在多个检测点；若按检测点随机切分训练集和测试集，同一文物可能跨集合，报告的满分分类指标存在信息泄漏和过拟合风险。",
+      "C155 先把未检测成分补为 0、随后直接描述 clr 变换，但 clr 对零值无定义；若另有零值替换步骤，正文未清楚说明，因此该流程不能原样复用。",
+      "C229 的乘法替换更符合成分数据要求，但替换常数、颜色众数/热卡插补和 Dirichlet 回归的结果都依赖较强假设，应做多方案敏感性比较。",
+      "C155 把 Yates 校正用于不止 2×2 的稀疏列联表，C229 又把名义型的纹饰和颜色编码成有序数字做 Spearman；两种关联检验都应改用适合稀疏名义变量的精确或 Monte Carlo 检验复核。",
+      "两个决策树的 PbO 阈值相差很大，说明阈值对预处理、风化分层和建模口径敏感；实际系统应优先采用按文物分组的重复交叉验证和阈值置信区间。",
+      "三亚类缺少外部真值；C155 的扰动检验和 C229 的聚类数选择不足以证明亚类具有考古学意义，应报告稳定性并保留不确定标签。",
+      "灰色关联与 Pearson/Wilcoxon 衡量的对象不同，且相关关系不等于因果关系；C229 也承认使用 Pearson 前未检验线性关系。",
+      "论文全文由页面图像识别后人工复核关键页形成；公式、附录代码和个别表格仍可能存在识别误差，后续人工审核应以原页面为准。"
+    ]
+  },
+  "review": {
+    "status": "approved",
+    "reviewer": "codex-source-audit",
+    "reviewed_at": "2026-07-21T03:03:12.728773+00:00",
+    "notes": "用户授权审核；已核对四个来源哈希、题目与附件统计、两篇论文关键页、全部 evidence source id 及公开字段，原始资料不分发。",
+    "corrections_applied": false
+  }
+}

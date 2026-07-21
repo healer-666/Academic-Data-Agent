@@ -1,0 +1,37 @@
+[
+  {
+    "id": "cumcm-2022-c-problem",
+    "title": "2022 年全国大学生数学建模竞赛 C 题《古代玻璃制品的成分分析与鉴别》",
+    "kind": "problem_statement",
+    "license": "competition-terms; metadata-only",
+    "uri": "https://www.mcm.edu.cn/html_cn/node/388239ded4b057d37b7b8e51e33fe903.html"
+  },
+  {
+    "id": "cumcm-2022-c-data",
+    "title": "2022 年全国大学生数学建模竞赛 C 题附件数据",
+    "kind": "dataset",
+    "license": "competition-terms; metadata-only",
+    "uri": "https://www.mcm.edu.cn/html_cn/node/388239ded4b057d37b7b8e51e33fe903.html"
+  },
+  {
+    "id": "cumcm-2022-c155",
+    "title": "C155《基于成分数据的古代玻璃制品的成分分析与鉴别》",
+    "kind": "paper",
+    "license": "citation-only; metadata-only",
+    "uri": "https://dxs.moe.gov.cn/zx/a/hd_sxjm_sxjmlw_2022qgdxssxjmjslwzs/221106/1820281.shtml"
+  },
+  {
+    "id": "cumcm-2022-c229",
+    "title": "C229《基于成分数据分析的玻璃制品分析与分类》",
+    "kind": "paper",
+    "license": "citation-only; metadata-only",
+    "uri": "https://dxs.moe.gov.cn/zx/a/hd_sxjm_sxjmlw_2022qgdxssxjmjslwzs_2022ctlw/230613/1843444.shtml"
+  },
+  {
+    "id": "modeling-skills-1.0",
+    "title": "Academic Data Agent mathematical-modeling skill catalog",
+    "kind": "modeling_skills",
+    "license": "project-authored",
+    "uri": "docs/modeling-skills.md"
+  }
+]

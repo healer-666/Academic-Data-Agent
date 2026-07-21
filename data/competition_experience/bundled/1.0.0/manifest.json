@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0",
+  "library": {
+    "id": "academic-data-agent-competition-experience",
+    "version": "1.0.0",
+    "content_status": "curated",
+    "published_at": "2026-07-21T03:06:46Z"
+  },
+  "sources": [
+    {
+      "id": "cumcm-2022-c-problem",
+      "title": "2022 年全国大学生数学建模竞赛 C 题《古代玻璃制品的成分分析与鉴别》",
+      "kind": "problem_statement",
+      "license": "competition-terms; metadata-only",
+      "uri": "https://www.mcm.edu.cn/html_cn/node/388239ded4b057d37b7b8e51e33fe903.html"
+    },
+    {
+      "id": "cumcm-2022-c-data",
+      "title": "2022 年全国大学生数学建模竞赛 C 题附件数据",
+      "kind": "dataset",
+      "license": "competition-terms; metadata-only",
+      "uri": "https://www.mcm.edu.cn/html_cn/node/388239ded4b057d37b7b8e51e33fe903.html"
+    },
+    {
+      "id": "cumcm-2022-c155",
+      "title": "C155《基于成分数据的古代玻璃制品的成分分析与鉴别》",
+      "kind": "paper",
+      "license": "citation-only; metadata-only",
+      "uri": "https://dxs.moe.gov.cn/zx/a/hd_sxjm_sxjmlw_2022qgdxssxjmjslwzs/221106/1820281.shtml"
+    },
+    {
+      "id": "cumcm-2022-c229",
+      "title": "C229《基于成分数据分析的玻璃制品分析与分类》",
+      "kind": "paper",
+      "license": "citation-only; metadata-only",
+      "uri": "https://dxs.moe.gov.cn/zx/a/hd_sxjm_sxjmlw_2022qgdxssxjmjslwzs_2022ctlw/230613/1843444.shtml"
+    },
+    {
+      "id": "modeling-skills-1.0",
+      "title": "Academic Data Agent mathematical-modeling skill catalog",
+      "kind": "modeling_skills",
+      "license": "project-authored",
+      "uri": "docs/modeling-skills.md"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "cases/cumcm-2022-c.json",
+      "kind": "case_card",
+      "sha256": "3f7f677d57317f1dce647733eef537be854cc1d5bf4296bd14277ebc10de4ed0",
+      "size_bytes": 14947
+    },
+    {
+      "path": "indexes/keyword_index.json",
+      "kind": "keyword_index",
+      "sha256": "0891279ccf85789ebca51e2cc0aaaa709f96d475a679568877178570a34bed2e",
+      "size_bytes": 3913
+    },
+    {
+      "path": "NOTICE.md",
+      "kind": "metadata",
+      "sha256": "eb1e2765f706aeed1100d5b33e6a099719d3d1262256928c0cb1d9d52d7a0156",
+      "size_bytes": 704
+    },
+    {
+      "path": "skills/catalog.json",
+      "kind": "modeling_skills",
+      "sha256": "728a97f2d4c4178bbccd0d0b638d53b1f78623cdc38f29130abb7cfa158f4d28",
+      "size_bytes": 12954
+    }
+  ]
+}
