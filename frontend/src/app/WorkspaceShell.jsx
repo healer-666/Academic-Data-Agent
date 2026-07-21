@@ -1,6 +1,7 @@
 import { Menu, PanelLeftClose, PanelLeftOpen, RefreshCw, X } from "lucide-react";
-import { NAV_ITEMS } from "./navigation";
+import { getNavigationItems } from "./navigation";
 import AnalysisView from "../pages/AnalysisPage";
+import CaseLibraryView from "../pages/CaseLibraryPage";
 import HistoryView from "../pages/HistoryPage";
 import KnowledgeView from "../pages/KnowledgePage";
 import LineageView from "../pages/LineagePage";
@@ -9,14 +10,14 @@ import ModelSettingsView from "../pages/ModelSettingsPage";
 import { ViewLoading } from "../components/WorkspacePrimitives";
 
 export default function WorkspaceShell({ controller }) {
-  const { navigation, workspace: workspaceState, analysis, history } = controller;
+  const { navigation, workspace: workspaceState, analysis, history, caseLibrary } = controller;
   const { activeView, setActiveView, sidebarCollapsed, setSidebarCollapsed, mobileSidebarOpen, setMobileSidebarOpen } = navigation;
   const { data: workspace, error: workspaceError, loading: workspaceLoading, refresh: refreshWorkspace } = workspaceState;
   const {
     form, setForm, dataFile, setDataFile, knowledgeFiles, setKnowledgeFiles,
     problemFile, setProblemFile, modelingDataFiles, setModelingDataFiles,
     modelingAttachments, setModelingAttachments, modelingPackage,
-    modelingBusy, modelingError, inspectModelingPackage, saveModelingReview, resetModelingPackage,
+    modelingBusy, modelingError, inspectModelingPackage, saveModelingReview, saveModelingPlanReview, resetModelingPackage,
     isRunning, status, logs, result, submit: submitAnalysis,
   } = analysis;
   const {
@@ -24,9 +25,18 @@ export default function WorkspaceShell({ controller }) {
     qaQuestion, setQaQuestion, qaMode, setQaMode, qaSelected, setQaSelected,
     qaResult, qaLoading, ask: handleAskQuestion,
   } = history;
+  const {
+    data: caseLibraryData, detail: caseLibraryDetail, selectedCaseId,
+    loading: caseLibraryLoading, error: caseLibraryError,
+    select: selectCase, refresh: refreshCaseLibrary,
+  } = caseLibrary;
 
-  const activeItem = NAV_ITEMS.find((item) => item.id === activeView) || NAV_ITEMS[0];
+  const navigationItems = getNavigationItems(form.scenario);
+  const activeItem = navigationItems.find((item) => item.id === activeView) || navigationItems[0];
   const ActiveIcon = activeItem.icon;
+  const showingCaseLibrary = activeView === "knowledge" && form.scenario === "modeling";
+  const refreshBusy = showingCaseLibrary ? caseLibraryLoading : workspaceLoading;
+  const handleRefresh = showingCaseLibrary ? refreshCaseLibrary : refreshWorkspace;
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? "sidebar-is-collapsed" : ""}`}>
@@ -53,7 +63,7 @@ export default function WorkspaceShell({ controller }) {
         </div>
 
         <nav className="nav-list">
-          {NAV_ITEMS.map((item) => {
+          {navigationItems.map((item) => {
             const Icon = item.icon;
             return (
               <button
@@ -102,11 +112,11 @@ export default function WorkspaceShell({ controller }) {
             <button
               className="secondary-button"
               type="button"
-              onClick={() => refreshWorkspace()}
-              disabled={workspaceLoading}
+              onClick={() => handleRefresh()}
+              disabled={refreshBusy}
             >
-              <RefreshCw className={workspaceLoading ? "spin" : ""} size={16} />
-              {workspaceLoading ? "刷新中" : "刷新"}
+              <RefreshCw className={refreshBusy ? "spin" : ""} size={16} />
+              {refreshBusy ? "刷新中" : "刷新"}
             </button>
           )}
         </header>
@@ -134,6 +144,7 @@ export default function WorkspaceShell({ controller }) {
               onInspectModeling={inspectModelingPackage}
               onSaveModelingReview={saveModelingReview}
               onResetModeling={resetModelingPackage}
+              onSaveModelingPlan={saveModelingPlanReview}
               isRunning={isRunning}
               onSubmit={submitAnalysis}
             />
@@ -171,11 +182,19 @@ export default function WorkspaceShell({ controller }) {
             />
           )}
           {activeView === "knowledge" && (
-            workspaceLoading && !workspace ? (
+            form.scenario === "modeling" ? (
+              <CaseLibraryView
+                library={caseLibraryData}
+                detail={caseLibraryDetail}
+                selectedCaseId={selectedCaseId}
+                loading={caseLibraryLoading}
+                error={caseLibraryError}
+                onSelect={selectCase}
+                onRetry={refreshCaseLibrary}
+              />
+            ) : workspaceLoading && !workspace ? (
               <ViewLoading message="正在加载知识库" />
-            ) : (
-              <KnowledgeView knowledgeBase={workspace?.knowledgeBase} />
-            )
+            ) : <KnowledgeView knowledgeBase={workspace?.knowledgeBase} />
           )}
           {activeView === "settings" && <ModelSettingsView />}
         </div>

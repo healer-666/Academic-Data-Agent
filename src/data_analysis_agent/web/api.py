@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, SecretStr
 
 from ..agent_runner import run_analysis
+from ..experience_library import CompetitionExperienceError, CompetitionExperienceLibrary, ExperienceLibraryManager
 from ..history_qa import answer_history_question
 from ..memory import derive_memory_scope_key
 from ..modeling_workspace import ModelingWorkspace, ModelingWorkspaceError
@@ -122,6 +123,15 @@ class ModelingPackageUpdateRequest(BaseModel):
     relationships: list[dict[str, Any]] | None = None
     relationshipNotes: str | None = None
     confirmed: bool | None = None
+
+
+class ModelingPlanRequest(BaseModel):
+    query: str = ""
+
+
+class ModelingPlanUpdateRequest(BaseModel):
+    userAdjustments: str = ""
+    confirmed: bool = False
 
 
 def _json_default(value: object) -> object:
@@ -724,6 +734,12 @@ def create_app(project_root: Path | None = None) -> FastAPI:
     app = FastAPI(title="Academic Data Agent React API", version="1.0.0")
     app.state.model_settings = ModelSettingsStore(root / ".env")
     app.state.modeling_workspace = ModelingWorkspace(root / "outputs" / "modeling_packages")
+    app.state.competition_experience = CompetitionExperienceLibrary(
+        ExperienceLibraryManager(
+            install_root=root / "memory" / "competition_experience_library",
+            bundled_root=root / "data" / "competition_experience" / "bundled" / "1.0.0",
+        )
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -745,6 +761,17 @@ def create_app(project_root: Path | None = None) -> FastAPI:
     @app.get("/api/workspace")
     async def workspace(output_dir: str = Query(DEFAULT_OUTPUT_DIR)) -> dict[str, object]:
         return _serialize_workspace(output_dir or DEFAULT_OUTPUT_DIR)
+
+    @app.get("/api/experience/cases")
+    async def experience_cases() -> dict[str, object]:
+        return app.state.competition_experience.browse()
+
+    @app.get("/api/experience/cases/{case_id}")
+    async def experience_case_detail(case_id: str) -> dict[str, object]:
+        try:
+            return app.state.competition_experience.get(case_id)
+        except CompetitionExperienceError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from None
 
     @app.get("/api/settings/model")
     async def model_settings_status() -> dict[str, object]:
@@ -897,6 +924,25 @@ def create_app(project_root: Path | None = None) -> FastAPI:
     ) -> dict[str, object]:
         try:
             return app.state.modeling_workspace.update(package_id, payload.model_dump(exclude_none=True))
+        except ModelingWorkspaceError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from None
+
+    @app.post("/api/modeling/packages/{package_id}/plan")
+    async def generate_modeling_plan(package_id: str, payload: ModelingPlanRequest) -> dict[str, object]:
+        try:
+            context = app.state.modeling_workspace.planning_context(package_id, query=payload.query)
+            plan = app.state.competition_experience.build_plan(context)
+            return app.state.modeling_workspace.save_plan(package_id, plan)
+        except (ModelingWorkspaceError, CompetitionExperienceError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from None
+
+    @app.patch("/api/modeling/packages/{package_id}/plan")
+    async def review_modeling_plan(
+        package_id: str,
+        payload: ModelingPlanUpdateRequest,
+    ) -> dict[str, object]:
+        try:
+            return app.state.modeling_workspace.update_plan(package_id, payload.model_dump())
         except ModelingWorkspaceError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from None
 

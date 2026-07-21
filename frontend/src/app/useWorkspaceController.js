@@ -2,10 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   askHistoryQuestion,
   createModelingPackage,
+  fetchExperienceCase,
+  fetchExperienceCases,
   fetchHistoryRun,
   fetchWorkspace,
+  generateModelingPlan,
   startAnalysis,
   updateModelingPackage,
+  updateModelingPlan,
 } from "../api";
 import { DEFAULT_FORM } from "./defaults";
 
@@ -25,6 +29,11 @@ export function useWorkspaceController() {
   const [modelingPackage, setModelingPackage] = useState(null);
   const [modelingBusy, setModelingBusy] = useState(false);
   const [modelingError, setModelingError] = useState("");
+  const [caseLibrary, setCaseLibrary] = useState(null);
+  const [caseLibraryDetail, setCaseLibraryDetail] = useState(null);
+  const [selectedCaseId, setSelectedCaseId] = useState("");
+  const [caseLibraryLoading, setCaseLibraryLoading] = useState(false);
+  const [caseLibraryError, setCaseLibraryError] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [status, setStatus] = useState({ state: "idle", message: "等待任务开始" });
   const [logs, setLogs] = useState([]);
@@ -39,6 +48,7 @@ export function useWorkspaceController() {
   const [qaLoading, setQaLoading] = useState(false);
   const workspaceRequestRef = useRef(0);
   const historyRequestRef = useRef(0);
+  const caseRequestRef = useRef(0);
 
   const refreshWorkspace = useCallback(
     async (outputDir = form.outputDir) => {
@@ -104,6 +114,58 @@ export function useWorkspaceController() {
       loadHistoryDetail(selectedRunId);
     }
   }, [activeView, historyDetail, historyLoadingRunId, loadHistoryDetail, selectedRunId]);
+
+  const selectExperienceCase = useCallback(async (caseId) => {
+    if (!caseId) return;
+    const requestId = ++caseRequestRef.current;
+    setSelectedCaseId(caseId);
+    setCaseLibraryDetail(null);
+    setCaseLibraryLoading(true);
+    try {
+      const payload = await fetchExperienceCase(caseId);
+      if (requestId !== caseRequestRef.current) return;
+      setCaseLibraryDetail(payload);
+      setCaseLibraryError("");
+    } catch (error) {
+      if (requestId !== caseRequestRef.current) return;
+      setCaseLibraryError(error instanceof Error ? error.message : "案例详情加载失败");
+    } finally {
+      if (requestId === caseRequestRef.current) setCaseLibraryLoading(false);
+    }
+  }, []);
+
+  const refreshCaseLibrary = useCallback(async () => {
+    const requestId = ++caseRequestRef.current;
+    setCaseLibraryLoading(true);
+    try {
+      const payload = await fetchExperienceCases();
+      if (requestId !== caseRequestRef.current) return;
+      setCaseLibrary(payload);
+      setCaseLibraryError("");
+      const nextId = payload.cases?.some((item) => item.id === selectedCaseId)
+        ? selectedCaseId
+        : payload.cases?.[0]?.id || "";
+      setSelectedCaseId(nextId);
+      if (nextId) {
+        const detail = await fetchExperienceCase(nextId);
+        if (requestId !== caseRequestRef.current) return;
+        setCaseLibraryDetail(detail);
+      } else {
+        setCaseLibraryDetail(null);
+      }
+    } catch (error) {
+      if (requestId !== caseRequestRef.current) return;
+      setCaseLibraryError(error instanceof Error ? error.message : "竞赛案例库加载失败");
+    } finally {
+      if (requestId === caseRequestRef.current) setCaseLibraryLoading(false);
+    }
+  }, [selectedCaseId]);
+
+  useEffect(() => {
+    if (form.scenario === "modeling" && activeView === "knowledge" && !caseLibrary && !caseLibraryLoading) {
+      refreshCaseLibrary();
+    }
+  }, [activeView, caseLibrary, caseLibraryLoading, form.scenario, refreshCaseLibrary]);
 
   const submitAnalysis = async (event) => {
     event.preventDefault();
@@ -183,8 +245,26 @@ export function useWorkspaceController() {
     try {
       const payload = await updateModelingPackage(modelingPackage.packageId, corrections);
       setModelingPackage(payload);
+      if (payload.status === "confirmed") {
+        const planned = await generateModelingPlan(payload.packageId, form.query);
+        setModelingPackage(planned);
+      }
     } catch (error) {
       setModelingError(error instanceof Error ? error.message : "资料包修正保存失败");
+    } finally {
+      setModelingBusy(false);
+    }
+  };
+
+  const saveModelingPlanReview = async (corrections) => {
+    if (!modelingPackage?.packageId || modelingBusy) return;
+    setModelingBusy(true);
+    setModelingError("");
+    try {
+      const payload = await updateModelingPlan(modelingPackage.packageId, corrections);
+      setModelingPackage(payload);
+    } catch (error) {
+      setModelingError(error instanceof Error ? error.message : "分析方案保存失败");
     } finally {
       setModelingBusy(false);
     }
@@ -226,13 +306,22 @@ export function useWorkspaceController() {
       form, setForm, dataFile, setDataFile, knowledgeFiles, setKnowledgeFiles,
       problemFile, setProblemFile, modelingDataFiles, setModelingDataFiles,
       modelingAttachments, setModelingAttachments, modelingPackage,
-      modelingBusy, modelingError, inspectModelingPackage, saveModelingReview, resetModelingPackage,
+      modelingBusy, modelingError, inspectModelingPackage, saveModelingReview, saveModelingPlanReview, resetModelingPackage,
       isRunning, status, logs, result, submit: submitAnalysis,
     },
     history: {
       selectedRunId, setSelectedRunId, detail: historyDetail, loadingRunId: historyLoadingRunId,
       qaQuestion, setQaQuestion, qaMode, setQaMode, qaSelected, setQaSelected,
       qaResult, qaLoading, ask: handleAskQuestion,
+    },
+    caseLibrary: {
+      data: caseLibrary,
+      detail: caseLibraryDetail,
+      selectedCaseId,
+      loading: caseLibraryLoading,
+      error: caseLibraryError,
+      select: selectExperienceCase,
+      refresh: refreshCaseLibrary,
     },
   };
 }
