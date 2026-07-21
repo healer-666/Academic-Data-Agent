@@ -110,6 +110,33 @@ class ModelingWorkspaceTests(unittest.TestCase):
         self.assertEqual(updated["relationships"][0]["status"], "confirmed")
         self.assertEqual(workspace.load(package["packageId"])["primaryTableId"], package["tables"][1]["id"])
 
+        context = workspace.planning_context(package["packageId"], query="Compare linked customer models")
+        self.assertEqual(context["packageStatus"], "confirmed")
+        self.assertIn("Analyze linked customer", context["problemText"])
+        self.assertNotIn("problemText", workspace.load(package["packageId"]))
+
+        plan = {
+            "schemaVersion": 1,
+            "status": "needs_confirmation",
+            "dataOperations": [{"name": "Audit"}],
+            "models": [{"name": "Baseline"}],
+            "validationMethods": [{"name": "Grouped CV"}],
+            "caseMatches": [],
+            "selectedSkills": [],
+            "warnings": [],
+            "userAdjustments": "",
+            "audit": {"events": []},
+        }
+        with_plan = workspace.save_plan(package["packageId"], plan)
+        self.assertEqual(with_plan["analysisPlan"]["status"], "needs_confirmation")
+        confirmed_plan = workspace.update_plan(
+            package["packageId"],
+            {"userAdjustments": "保留简单基线。", "confirmed": True},
+        )
+        self.assertEqual(confirmed_plan["analysisPlan"]["status"], "confirmed")
+        self.assertEqual(confirmed_plan["analysisPlan"]["userAdjustments"], "保留简单基线。")
+        self.assertEqual(confirmed_plan["analysisPlan"]["audit"]["events"][-1]["type"], "plan_confirmed")
+
         reopened = workspace.update(package["packageId"], {"confirmed": False})
         self.assertEqual(reopened["review"]["tableLabels"][package["tables"][0]["id"]], "客户主表")
         self.assertEqual(reopened["review"]["relationshipNotes"], "已核对字段定义。")
@@ -190,6 +217,36 @@ class ModelingWorkspaceApiTests(unittest.TestCase):
         loaded = self.client.get(f"/api/modeling/packages/{package['packageId']}")
         self.assertEqual(loaded.status_code, 200)
         self.assertEqual(loaded.json()["review"]["relationshipNotes"], "人工确认")
+
+        plan_response = self.client.post(
+            f"/api/modeling/packages/{package['packageId']}/plan",
+            json={"query": "分析古代玻璃风化、化学成分和高钾铅钡分类"},
+        )
+        self.assertEqual(plan_response.status_code, 200)
+        plan = plan_response.json()["analysisPlan"]
+        self.assertEqual(plan["status"], "needs_confirmation")
+        self.assertEqual(plan["caseMatches"][0]["caseId"], "cumcm-2022-c")
+        self.assertTrue(plan["selectedSkills"])
+        self.assertEqual(plan["audit"]["libraryVersion"], "1.0.0")
+
+        confirm_plan = self.client.patch(
+            f"/api/modeling/packages/{package['packageId']}/plan",
+            json={"userAdjustments": "先比较两个基线模型。", "confirmed": True},
+        )
+        self.assertEqual(confirm_plan.status_code, 200)
+        self.assertEqual(confirm_plan.json()["analysisPlan"]["status"], "confirmed")
+
+    def test_case_library_list_and_detail_endpoints(self):
+        listing = self.client.get("/api/experience/cases")
+        detail = self.client.get("/api/experience/cases/cumcm-2022-c")
+
+        self.assertEqual(listing.status_code, 200)
+        self.assertTrue(listing.json()["usable"])
+        self.assertEqual(listing.json()["cases"][0]["reviewStatus"], "approved")
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.json()["case"]["id"], "cumcm-2022-c")
+        self.assertNotIn("_private", detail.text)
+        self.assertEqual(self.client.get("/api/experience/cases/missing").status_code, 404)
 
 
 if __name__ == "__main__":

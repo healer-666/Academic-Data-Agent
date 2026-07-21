@@ -61,6 +61,19 @@ The built-in library directory is separate from `memory/knowledge_base`, `memory
 
 For mathematical-modeling runs, the runtime resolves an installed active version first and otherwise uses bundled `1.0.0`. It validates the manifest and all artifact checksums before loading methods. If the active pointer, package, or skill catalog is missing or damaged, the run continues as general analysis without historical-case guidance. An explicitly supplied skill catalog remains strict and reports errors instead of silently degrading.
 
+## Web browsing, matching, and plan review
+
+The web workspace keeps the two knowledge surfaces separate:
+
+- general analysis continues to show the local knowledge base;
+- mathematical modeling changes the same navigation slot to the competition case library.
+
+`GET /api/experience/cases` returns approved case summaries and `GET /api/experience/cases/{case_id}` returns a public detail view with methods, findings, limitations, and metadata-only sources. Private provenance, raw excerpts, checksums, and local paths are never returned.
+
+After a modeling package is reviewed, `POST /api/modeling/packages/{package_id}/plan` matches the current problem statement, user goal, table names, and fields against the active keyword index. Cases below the relevance threshold are not forced into the plan. The same operation selects modeling skills from the versioned catalog and records the considered and selected identifiers in the plan audit block.
+
+The generated plan exposes current-task data operations, historical methods as references rather than conclusions, validation steps, matched-case similarities and differences, selected-skill reasons, source links, and degradation warnings. Users may save adjustments or confirm the plan through `PATCH /api/modeling/packages/{package_id}/plan`; both actions append an auditable event to the modeling package.
+
 ## Release maintenance
 
 New historical materials must first pass the Issue #10 extraction and approval gate. Publish only structured cards into a new semantic-version directory, rebuild the keyword index, copy the reviewed modeling-skill catalog, and regenerate `manifest.json` with `experience_library.py manifest`. Build and install a package in an isolated directory before changing the default bundled root.

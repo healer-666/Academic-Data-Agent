@@ -11,6 +11,8 @@ from typing import Any, Mapping, Sequence
 
 import pandas as pd
 
+from .rag.document_reader import load_knowledge_documents
+
 
 PACKAGE_SCHEMA_VERSION = 1
 MAX_RELATIONSHIPS = 20
@@ -116,6 +118,68 @@ class ModelingWorkspace:
 
     def load(self, package_id: str) -> dict[str, Any]:
         return _public_package(self._read(package_id))
+
+    def planning_context(self, package_id: str, *, query: str) -> dict[str, Any]:
+        """Return the confirmed package context needed by the planning module."""
+
+        package = self._read(package_id)
+        if package.get("status") != "confirmed":
+            raise ModelingWorkspaceError("Confirm the modeling package before generating an analysis plan.")
+        problem_path = Path(str(package.get("_private", {}).get("problemPath", "") or ""))
+        problem_text, problem_warnings = _read_problem_text(problem_path)
+        return {
+            "packageId": str(package["packageId"]),
+            "packageStatus": str(package["status"]),
+            "query": str(query or "").strip(),
+            "problemText": problem_text,
+            "problemWarnings": problem_warnings,
+            "tables": package["tables"],
+            "relationships": package["relationships"],
+            "primaryTableId": package["primaryTableId"],
+            "summary": package["summary"],
+            "review": package["review"],
+        }
+
+    def save_plan(self, package_id: str, plan: Mapping[str, Any]) -> dict[str, Any]:
+        """Persist a generated plan in the auditable modeling package."""
+
+        package = self._read(package_id)
+        normalized = _normalize_analysis_plan(plan)
+        package["analysisPlan"] = normalized
+        package["updatedAt"] = _utc_now()
+        self._write(package)
+        return _public_package(package)
+
+    def update_plan(self, package_id: str, corrections: Mapping[str, Any]) -> dict[str, Any]:
+        """Persist user adjustments and confirmation without rewriting generated evidence."""
+
+        package = self._read(package_id)
+        plan = package.get("analysisPlan")
+        if not isinstance(plan, Mapping):
+            raise ModelingWorkspaceError("Generate an analysis plan before reviewing it.")
+        updated = dict(plan)
+        updated["userAdjustments"] = str(
+            corrections.get("userAdjustments", updated.get("userAdjustments", "")) or ""
+        ).strip()[:5000]
+        confirmed = bool(corrections.get("confirmed", updated.get("status") == "confirmed"))
+        updated["status"] = "confirmed" if confirmed else "needs_confirmation"
+        if confirmed:
+            updated["confirmedAt"] = _utc_now()
+        audit = dict(updated.get("audit", {}))
+        events = list(audit.get("events", []))
+        events.append(
+            {
+                "type": "plan_confirmed" if confirmed else "plan_adjusted",
+                "at": _utc_now(),
+                "hasUserAdjustments": bool(updated["userAdjustments"]),
+            }
+        )
+        audit["events"] = events[-20:]
+        updated["audit"] = audit
+        package["analysisPlan"] = _normalize_analysis_plan(updated)
+        package["updatedAt"] = _utc_now()
+        self._write(package)
+        return _public_package(package)
 
     def _package_path(self, package_id: str) -> Path:
         return self.root / _safe_package_id(package_id) / "package.json"
@@ -358,6 +422,32 @@ def _select_primary_table(tables: Sequence[Mapping[str, Any]]) -> str:
 
 def _public_package(package: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in package.items() if not str(key).startswith("_")}
+
+
+def _read_problem_text(path: Path) -> tuple[str, list[str]]:
+    if not path.is_file():
+        return "", ["赛题说明文件不可用，案例匹配仅使用用户目标和表结构。"]
+    documents, warnings = load_knowledge_documents(path)
+    text = "\n".join(document.text for document in documents if str(document.text or "").strip())
+    return text[:20000], list(warnings)
+
+
+def _normalize_analysis_plan(value: Mapping[str, Any]) -> dict[str, Any]:
+    if not isinstance(value, Mapping) or int(value.get("schemaVersion", 0) or 0) != 1:
+        raise ModelingWorkspaceError("Analysis plan has an unsupported schema.")
+    status = str(value.get("status", "") or "")
+    if status not in {"needs_confirmation", "confirmed"}:
+        raise ModelingWorkspaceError("Analysis plan has an invalid status.")
+    required_lists = ("dataOperations", "models", "validationMethods", "caseMatches", "selectedSkills", "warnings")
+    for field in required_lists:
+        if not isinstance(value.get(field), list):
+            raise ModelingWorkspaceError(f"Analysis plan requires a {field} list.")
+    # JSON round-tripping produces a detached, serializable copy and rejects
+    # accidental Path/dataframe objects before they reach the package file.
+    try:
+        return json.loads(json.dumps(value, ensure_ascii=False))
+    except (TypeError, ValueError) as exc:
+        raise ModelingWorkspaceError(f"Analysis plan is not serializable: {exc}") from exc
 
 
 def _file_summary(path: Path, role: str) -> dict[str, Any]:

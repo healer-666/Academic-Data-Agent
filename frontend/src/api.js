@@ -232,6 +232,56 @@ export async function updateModelingPackage(packageId, corrections) {
   return payload;
 }
 
+export async function fetchExperienceCases() {
+  const response = await fetch(apiUrl("/api/experience/cases"), {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  const payload = await readJson(response);
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.message || `竞赛案例库加载失败：${response.status}`);
+  }
+  return payload;
+}
+
+export async function fetchExperienceCase(caseId) {
+  const response = await fetch(apiUrl(`/api/experience/cases/${encodeURIComponent(caseId)}`), {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  const payload = await readJson(response);
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.message || `案例详情加载失败：${response.status}`);
+  }
+  return payload;
+}
+
+export async function generateModelingPlan(packageId, query) {
+  const response = await fetch(apiUrl(`/api/modeling/packages/${encodeURIComponent(packageId)}/plan`), {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
+  const payload = await readJson(response);
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.message || `分析方案生成失败：${response.status}`);
+  }
+  return payload;
+}
+
+export async function updateModelingPlan(packageId, corrections) {
+  const response = await fetch(apiUrl(`/api/modeling/packages/${encodeURIComponent(packageId)}/plan`), {
+    method: "PATCH",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(corrections),
+  });
+  const payload = await readJson(response);
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.message || `分析方案保存失败：${response.status}`);
+  }
+  return payload;
+}
+
 export function toAbsoluteFileUrl(url) {
   if (!url) return "";
   if (/^https?:\/\//i.test(url) || url.startsWith("data:")) return url;

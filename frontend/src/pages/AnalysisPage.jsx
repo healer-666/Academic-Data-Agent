@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
+  BookOpenCheck,
   Check,
   CheckCircle2,
   Database,
@@ -355,9 +356,111 @@ function ModelingPackageReview({ packageData, busy, onSave, onReset }) {
       {packageData.status === "confirmed" && (
         <div className="package-next-step">
           <CheckCircle2 size={18} />
-          <div><strong>资料包已经确认</strong><span>下一步将在 Issue #15 中基于这份资料生成可调整的分析方案。</span></div>
+          <div><strong>资料包已经确认</strong><span>系统已基于当前目标、表结构、历史案例和建模 skills 生成下方方案。</span></div>
         </div>
       )}
+    </section>
+  );
+}
+
+function PlanItemGroup({ title, items }) {
+  if (!items?.length) return null;
+  return (
+    <section className="plan-review-section">
+      <h3>{title}</h3>
+      <div className="plan-item-grid">
+        {items.map((item, index) => (
+          <article key={`${item.name}-${index}`}>
+            <header><strong>{item.name}</strong>{item.referenceOnly && <span>历史参考</span>}</header>
+            <p>{item.purpose}</p>
+            {item.caseIds?.length > 0 && <small>来源案例：{item.caseIds.join("、")}</small>}
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ModelingPlanReview({ plan, busy, onSave }) {
+  const [adjustments, setAdjustments] = useState(plan.userAdjustments || "");
+  useEffect(() => setAdjustments(plan.userAdjustments || ""), [plan]);
+  const confirmed = plan.status === "confirmed";
+  return (
+    <section className="modeling-plan-review" aria-label="案例启发的分析方案">
+      <header className="plan-review-header">
+        <div>
+          <span className="kicker">Case-informed plan</span>
+          <h2>检查案例启发的分析方案</h2>
+          <p>{plan.summary}</p>
+        </div>
+        <span className={`package-status ${confirmed ? "confirmed" : "needs_review"}`}>
+          {confirmed ? <CheckCircle2 size={16} /> : <Info size={16} />}
+          {confirmed ? "方案已确认" : "等待确认"}
+        </span>
+      </header>
+
+      <div className="plan-audit-strip">
+        <span><BookOpenCheck size={15} />经验库 {plan.audit?.libraryVersion || "不可用"}</span>
+        <span>候选案例 {plan.audit?.consideredCaseIds?.length || 0}</span>
+        <span>采用案例 {plan.caseMatches?.length || 0}</span>
+        <span>建模 skills {plan.selectedSkills?.length || 0}</span>
+      </div>
+
+      {plan.caseMatches?.length ? (
+        <section className="plan-review-section">
+          <h3>匹配的历史案例</h3>
+          <div className="matched-case-list">
+            {plan.caseMatches.map((match) => (
+              <article key={match.caseId}>
+                <header><strong>{match.year} 年 {match.problemNumber} 题 · {match.title}</strong><span>{Math.round(match.score * 100)}% 相关</span></header>
+                <div className="match-columns">
+                  <div><small>相似点</small><ul>{match.similarities.map((value) => <li key={value}>{value}</li>)}</ul></div>
+                  <div><small>差异与边界</small><ul>{match.differences.map((value) => <li key={value}>{value}</li>)}</ul></div>
+                </div>
+                <p className="match-applicability">{match.applicability}</p>
+                <div className="match-source-links">
+                  {match.sources.map((source) => <a href={source.uri} target="_blank" rel="noreferrer" key={source.id}>{source.title}</a>)}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <div className="plan-no-match"><Info size={16} /><span>没有达到相关性门槛的历史案例；系统没有强行套用案例，仅保留通用建模 skills。</span></div>
+      )}
+
+      <PlanItemGroup title="准备处理的数据与操作" items={plan.dataOperations} />
+      <PlanItemGroup title="候选模型" items={plan.models} />
+      <PlanItemGroup title="验证与敏感性分析" items={plan.validationMethods} />
+
+      <section className="plan-review-section">
+        <h3>选用的建模 skills</h3>
+        <div className="selected-skill-list">
+          {plan.selectedSkills?.map((skill) => (
+            <article key={skill.id}><strong>{skill.name}</strong><span>{skill.category}</span><p>{skill.description}</p><small>{skill.reasons.join("；")}</small></article>
+          ))}
+        </div>
+      </section>
+
+      {plan.warnings?.length > 0 && <div className="plan-warning-list">{plan.warnings.map((value) => <p key={value}><AlertTriangle size={14} />{value}</p>)}</div>}
+      <div className="plan-external-note"><Info size={15} />{plan.externalSourceNote}</div>
+
+      <label className="field package-notes">
+        <span>调整意见</span>
+        <textarea rows={4} value={adjustments} onChange={(event) => setAdjustments(event.target.value)} placeholder="例如：增加一个简单基线；按文物编号分组验证；不要采用历史阈值。" disabled={confirmed} />
+      </label>
+      <footer className="package-review-actions">
+        {!confirmed && (
+          <button className="secondary-button" type="button" onClick={() => onSave({ userAdjustments: adjustments, confirmed: false })} disabled={busy}>
+            <Save size={16} />保存调整
+          </button>
+        )}
+        <button className="primary-button" type="button" onClick={() => onSave({ userAdjustments: adjustments, confirmed: true })} disabled={busy || confirmed}>
+          {busy ? <Loader2 className="spin" size={17} /> : <CheckCircle2 size={17} />}
+          {confirmed ? "方案已确认" : "确认分析方案"}
+        </button>
+      </footer>
+      {confirmed && <div className="package-next-step"><CheckCircle2 size={18} /><div><strong>方案已进入审计记录</strong><span>后续分析执行会严格使用已确认方案；执行工作区由 Issue #16 接续。</span></div></div>}
     </section>
   );
 }
@@ -380,6 +483,7 @@ function AnalysisView({
   modelingError,
   onInspectModeling,
   onSaveModelingReview,
+  onSaveModelingPlan,
   onResetModeling,
   isRunning,
   onSubmit,
@@ -485,6 +589,9 @@ function AnalysisView({
 
       {modeling && modelingPackage && (
         <ModelingPackageReview packageData={modelingPackage} busy={modelingBusy} onSave={onSaveModelingReview} onReset={onResetModeling} />
+      )}
+      {modeling && modelingPackage?.analysisPlan && (
+        <ModelingPlanReview plan={modelingPackage.analysisPlan} busy={modelingBusy} onSave={onSaveModelingPlan} />
       )}
     </section>
   );

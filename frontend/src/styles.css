@@ -2690,6 +2690,455 @@ button:disabled {
   }
 }
 
+/* Curated competition cases and pre-execution modeling plan */
+.case-library-page {
+  padding-bottom: 36px;
+}
+
+.case-library-warning,
+.plan-no-match,
+.plan-external-note {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border: 1px solid #fed7aa;
+  border-radius: 12px;
+  color: #9a4d0b;
+  background: #fffaf3;
+}
+
+.case-library-warning > div {
+  flex: 1;
+}
+
+.case-library-warning strong,
+.case-library-warning p {
+  display: block;
+  margin: 0;
+}
+
+.case-library-warning p {
+  margin-top: 3px;
+  color: #7c5a39;
+}
+
+.case-library-layout {
+  display: grid;
+  grid-template-columns: minmax(250px, 320px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.case-card-list {
+  position: sticky;
+  top: 86px;
+  display: grid;
+  gap: 10px;
+}
+
+.case-card-button {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 15px;
+  border: 1px solid #dce6f0;
+  border-radius: 12px;
+  color: #26364d;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.case-card-button:hover,
+.case-card-button.active {
+  border-color: #7eb0db;
+  background: #f3f8fd;
+}
+
+.case-card-button > span,
+.case-card-button > small {
+  color: #64748b;
+}
+
+.case-card-button > strong {
+  font-size: 0.98rem;
+  line-height: 1.4;
+}
+
+.case-card-button > em {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  justify-self: start;
+  color: #147a54;
+  font-size: 0.73rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.case-detail-container {
+  min-height: 480px;
+}
+
+.case-detail-empty {
+  display: grid;
+  place-items: center;
+  min-height: 410px;
+  color: #8492a6;
+}
+
+.case-detail-empty strong {
+  margin-top: 8px;
+}
+
+.case-detail-panel {
+  display: grid;
+  gap: 22px;
+}
+
+.case-detail-hero {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e7edf4;
+}
+
+.case-detail-hero h2,
+.case-detail-hero p {
+  margin: 0;
+}
+
+.case-detail-hero h2 {
+  margin: 5px 0 9px;
+  color: #162337;
+}
+
+.case-detail-hero p {
+  max-width: 880px;
+  color: #56667a;
+  line-height: 1.65;
+}
+
+.approved-badge {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: #147a54;
+  background: #e9f8f1;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.case-keywords,
+.match-source-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.case-keywords span {
+  padding: 5px 9px;
+  border: 1px solid #d7e6f4;
+  border-radius: 999px;
+  color: #37648d;
+  background: #f6faff;
+  font-size: 0.75rem;
+}
+
+.case-detail-section {
+  display: grid;
+  gap: 12px;
+}
+
+.case-detail-section > header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: #315d84;
+}
+
+.case-detail-section h3 {
+  margin: 0;
+  color: #26364d;
+  font-size: 1rem;
+}
+
+.case-method-list,
+.plan-item-grid,
+.selected-skill-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.case-method-list article,
+.plan-item-grid article,
+.selected-skill-list article {
+  padding: 13px 14px;
+  border: 1px solid #e1e9f1;
+  border-radius: 11px;
+  background: #fbfdff;
+}
+
+.case-method-list p,
+.plan-item-grid p,
+.selected-skill-list p {
+  margin: 6px 0 0;
+  color: #5c6b7d;
+  line-height: 1.55;
+}
+
+.case-method-list details {
+  margin-top: 8px;
+  color: #52677d;
+}
+
+.case-finding-list,
+.case-detail-section.limitations ul {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding-left: 22px;
+  color: #45576d;
+  line-height: 1.6;
+}
+
+.case-detail-section.limitations {
+  padding: 15px;
+  border: 1px solid #f5d6ae;
+  border-radius: 12px;
+  background: #fffaf3;
+}
+
+.case-source-list {
+  display: grid;
+  gap: 8px;
+}
+
+.case-source-list a {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 13px;
+  border: 1px solid #dce8f3;
+  border-radius: 10px;
+  color: #235b8c;
+  text-decoration: none;
+}
+
+.case-source-list a:hover {
+  background: #f5faff;
+}
+
+.case-source-list a span,
+.case-source-list a small {
+  display: block;
+}
+
+.case-source-list a small {
+  margin-top: 3px;
+  color: #758398;
+}
+
+.modeling-plan-review {
+  display: grid;
+  gap: 20px;
+  margin: 0 24px 36px;
+  padding: 24px;
+  border: 1px solid #cfe0ef;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 34px rgba(44, 78, 111, 0.08);
+}
+
+.plan-review-header {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.plan-review-header h2,
+.plan-review-header p {
+  margin: 0;
+}
+
+.plan-review-header h2 {
+  margin: 4px 0 7px;
+  color: #17263a;
+}
+
+.plan-review-header p {
+  max-width: 880px;
+  color: #5c6b7d;
+  line-height: 1.6;
+}
+
+.plan-audit-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 12px;
+  border-radius: 11px;
+  background: #f3f8fc;
+}
+
+.plan-audit-strip span {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: #45637f;
+  background: #fff;
+  font-size: 0.78rem;
+}
+
+.plan-review-section {
+  display: grid;
+  gap: 11px;
+}
+
+.plan-review-section > h3 {
+  margin: 0;
+  color: #273a50;
+  font-size: 1rem;
+}
+
+.plan-item-grid article header,
+.matched-case-list article > header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.plan-item-grid article header span,
+.matched-case-list article > header span,
+.selected-skill-list article > span {
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: #35658e;
+  background: #eaf3fb;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.plan-item-grid article small,
+.selected-skill-list article small {
+  display: block;
+  margin-top: 7px;
+  color: #718096;
+  line-height: 1.45;
+}
+
+.matched-case-list {
+  display: grid;
+  gap: 12px;
+}
+
+.matched-case-list > article {
+  padding: 16px;
+  border: 1px solid #bcd7ee;
+  border-radius: 12px;
+  background: #f8fbfe;
+}
+
+.match-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.match-columns small {
+  color: #345b80;
+  font-weight: 800;
+}
+
+.match-columns ul {
+  margin: 6px 0 0;
+  padding-left: 19px;
+  color: #52657a;
+  line-height: 1.5;
+}
+
+.match-applicability {
+  margin: 11px 0;
+  color: #2d7258;
+  font-weight: 600;
+}
+
+.match-source-links a {
+  color: #286493;
+  font-size: 0.76rem;
+}
+
+.plan-no-match,
+.plan-external-note {
+  border-color: #cfe0ef;
+  color: #49657e;
+  background: #f7fbff;
+}
+
+.plan-warning-list {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid #fed7aa;
+  border-radius: 11px;
+  background: #fffaf3;
+}
+
+.plan-warning-list p {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0;
+  color: #8a541e;
+}
+
+@media (max-width: 980px) {
+  .case-library-layout,
+  .match-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .case-card-list {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .case-method-list,
+  .plan-item-grid,
+  .selected-skill-list {
+    grid-template-columns: 1fr;
+  }
+
+  .case-detail-hero,
+  .plan-review-header {
+    display: grid;
+  }
+
+  .approved-badge,
+  .package-status {
+    justify-self: start;
+  }
+
+  .modeling-plan-review {
+    margin: 0 14px 28px;
+    padding: 17px;
+  }
+}
+
 .modeling-package-review {
   display: grid;
   gap: 20px;
