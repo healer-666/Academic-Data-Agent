@@ -515,77 +515,92 @@ function AnalysisView({
 
   return (
     <section className="chat-page analysis-grid analysis-task-creation">
-      <div className="chat-body">
-        <div className="chat-welcome task-welcome">
-          <span className="kicker">New Research Task</span>
-          <h1>选择你要完成的任务</h1>
-          <p>选择场景、说明问题并上传资料。系统会先检查输入，再安排适合的分析深度、验证和结果审查。</p>
+      <div className="task-creation-grid">
+        <div className="task-primary-column">
+          <div className="chat-body">
+            <div className="chat-welcome task-welcome">
+              <span className="kicker">New research task</span>
+              <h1>从一个清楚的问题开始</h1>
+              <p>选择工作方式，说明你想解决的问题并添加资料。系统会先检查输入，再安排分析与验证。</p>
+            </div>
+            <ScenarioSelector selectedId={scenario.id} onSelect={selectScenario} />
+            <StrategySummary scenario={scenario} />
+          </div>
+
+          <form className="analysis-form chat-input-panel task-input-panel" onSubmit={handleSubmit}>
+            <div className="task-context-row">
+              <span className={`task-context-badge ${scenario.id}`}>
+                {modeling ? <FlaskConical size={15} /> : <BarChart3 size={15} />}
+                {scenario.label}
+              </span>
+              <span>{scenario.inputHint}</span>
+            </div>
+            <div className="chat-input-panel-inner">
+              <label className="field field-wide task-query-field">
+                <span>{modeling ? "赛题目标与补充要求" : "分析问题"}</span>
+                <textarea rows={5} value={form.query} onChange={(event) => update("query", event.target.value)} placeholder={scenario.queryPlaceholder} />
+              </label>
+            </div>
+            {scenario.boundary && <div className="scenario-boundary"><Info size={15} /><span>{scenario.boundary}</span></div>}
+
+            <div className="chat-input-actions task-input-actions">
+              {modeling ? (
+                <>
+                  <FileInput
+                    label="赛题说明"
+                    description="一份 TXT / MD / 可提取文本的 PDF"
+                    accept=".txt,.md,.pdf"
+                    files={problemFile ? [problemFile] : []}
+                    onChange={(files) => setProblemFile(files[0] || null)}
+                    onClear={() => setProblemFile(null)}
+                  />
+                  <FileInput
+                    label="赛题数据"
+                    description="可一次选择多份 CSV / XLS / XLSX"
+                    accept=".csv,.xls,.xlsx"
+                    multiple
+                    files={modelingDataFiles}
+                    onChange={setModelingDataFiles}
+                    onClear={() => setModelingDataFiles([])}
+                  />
+                  <FileInput
+                    label="必要附件"
+                    description="可选：说明、图片、补充表格等"
+                    accept=".txt,.md,.pdf,.doc,.docx,.png,.jpg,.jpeg,.csv,.xls,.xlsx"
+                    multiple
+                    files={modelingAttachments}
+                    onChange={setModelingAttachments}
+                    onClear={() => setModelingAttachments([])}
+                  />
+                </>
+              ) : (
+                <>
+                  <FileInput label="主要数据" description="CSV / XLS / XLSX" accept=".csv,.xls,.xlsx" files={dataFile ? [dataFile] : []} onChange={(files) => setDataFile(files[0] || null)} onClear={() => setDataFile(null)} />
+                  <FileInput label="参考资料" description="TXT / MD / PDF" accept=".txt,.md,.pdf" multiple files={knowledgeFiles} onChange={setKnowledgeFiles} onClear={() => setKnowledgeFiles([])} />
+                </>
+              )}
+
+              {modelingError && <div className="modeling-package-error"><AlertTriangle size={16} />{modelingError}</div>}
+              <div className="task-trust-note"><ShieldCheck size={15} /><span>{modeling ? "文件会先形成可审核资料包，不会在你确认关系前开始分析" : "运行参数由场景自动配置，过程与结果均保留审计记录"}</span></div>
+              <button className="primary-button chat-input-send" type="submit" disabled={modeling ? (modelingBusy || !modelingReady) : (isRunning || !dataFile)}>
+                {(modelingBusy || isRunning) ? <Loader2 className="spin" size={18} /> : (modeling ? <ScanSearch size={18} /> : <FileText size={18} />)}
+                <span>{modeling ? (modelingBusy ? "正在识别资料" : "识别并检查资料包") : (isRunning ? "任务运行中" : `开始${scenario.shortLabel}`)}</span>
+              </button>
+            </div>
+          </form>
         </div>
-        <ScenarioSelector selectedId={scenario.id} onSelect={selectScenario} />
-        <StrategySummary scenario={scenario} />
+        <aside className="task-guidance-panel" aria-label="任务流程说明">
+          <span className="kicker">How it works</span>
+          <h2>{modeling ? "先理解资料，再开始建模" : "一次可追溯的分析流程"}</h2>
+          <ol className="task-workflow">
+            <li className="active"><span>1</span><div><strong>描述问题</strong><p>说明目标、限制和你关心的判断。</p></div></li>
+            <li className={modelingPackage ? "active" : ""}><span>2</span><div><strong>{modeling ? "审核资料" : "检查数据"}</strong><p>{modeling ? "确认表结构、字段质量与表间关系。" : "识别字段、质量风险和分析边界。"}</p></div></li>
+            <li className={modelingPackage?.analysisPlan ? "active" : ""}><span>3</span><div><strong>{modeling ? "确认方案" : "执行与验证"}</strong><p>{modeling ? "查看案例依据、候选模型与验证方法。" : "运行分析并留下可复现记录。"}</p></div></li>
+            <li><span>4</span><div><strong>阅读交付</strong><p>在结果中心查看报告、可信度和文件。</p></div></li>
+          </ol>
+          <div className="task-guidance-note"><ShieldCheck size={17} /><span>原始资料留在本地工作区；关键操作会进入审计记录。</span></div>
+        </aside>
       </div>
-
-      <form className="analysis-form chat-input-panel task-input-panel" onSubmit={handleSubmit}>
-        <div className="task-context-row">
-          <span className={`task-context-badge ${scenario.id}`}>
-            {modeling ? <FlaskConical size={15} /> : <BarChart3 size={15} />}
-            {scenario.label}
-          </span>
-          <span>{scenario.inputHint}</span>
-        </div>
-        <div className="chat-input-panel-inner">
-          <label className="field field-wide task-query-field">
-            <span>{modeling ? "赛题目标与补充要求" : "分析问题"}</span>
-            <textarea rows={5} value={form.query} onChange={(event) => update("query", event.target.value)} placeholder={scenario.queryPlaceholder} />
-          </label>
-        </div>
-        {scenario.boundary && <div className="scenario-boundary"><Info size={15} /><span>{scenario.boundary}</span></div>}
-
-        <div className="chat-input-actions task-input-actions">
-          {modeling ? (
-            <>
-              <FileInput
-                label="赛题说明"
-                description="一份 TXT / MD / 可提取文本的 PDF"
-                accept=".txt,.md,.pdf"
-                files={problemFile ? [problemFile] : []}
-                onChange={(files) => setProblemFile(files[0] || null)}
-                onClear={() => setProblemFile(null)}
-              />
-              <FileInput
-                label="赛题数据"
-                description="可一次选择多份 CSV / XLS / XLSX"
-                accept=".csv,.xls,.xlsx"
-                multiple
-                files={modelingDataFiles}
-                onChange={setModelingDataFiles}
-                onClear={() => setModelingDataFiles([])}
-              />
-              <FileInput
-                label="必要附件"
-                description="可选：说明、图片、补充表格等"
-                accept=".txt,.md,.pdf,.doc,.docx,.png,.jpg,.jpeg,.csv,.xls,.xlsx"
-                multiple
-                files={modelingAttachments}
-                onChange={setModelingAttachments}
-                onClear={() => setModelingAttachments([])}
-              />
-            </>
-          ) : (
-            <>
-              <FileInput label="主要数据" description="CSV / XLS / XLSX" accept=".csv,.xls,.xlsx" files={dataFile ? [dataFile] : []} onChange={(files) => setDataFile(files[0] || null)} onClear={() => setDataFile(null)} />
-              <FileInput label="参考资料" description="TXT / MD / PDF" accept=".txt,.md,.pdf" multiple files={knowledgeFiles} onChange={setKnowledgeFiles} onClear={() => setKnowledgeFiles([])} />
-            </>
-          )}
-
-          {modelingError && <div className="modeling-package-error"><AlertTriangle size={16} />{modelingError}</div>}
-          <div className="task-trust-note"><ShieldCheck size={15} /><span>{modeling ? "文件会先形成可审核资料包，不会在你确认关系前开始分析" : "运行参数由场景自动配置，过程与结果均保留审计记录"}</span></div>
-          <button className="primary-button chat-input-send" type="submit" disabled={modeling ? (modelingBusy || !modelingReady) : (isRunning || !dataFile)}>
-            {(modelingBusy || isRunning) ? <Loader2 className="spin" size={18} /> : (modeling ? <ScanSearch size={18} /> : <FileText size={18} />)}
-            <span>{modeling ? (modelingBusy ? "正在识别资料" : "识别并检查资料包") : (isRunning ? "任务运行中" : `开始${scenario.shortLabel}`)}</span>
-          </button>
-        </div>
-      </form>
 
       {modeling && modelingPackage && (
         <ModelingPackageReview packageData={modelingPackage} busy={modelingBusy} onSave={onSaveModelingReview} onReset={onResetModeling} />

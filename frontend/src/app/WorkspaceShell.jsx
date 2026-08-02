@@ -1,4 +1,5 @@
-import { Menu, PanelLeftClose, PanelLeftOpen, RefreshCw, X } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { FolderOutput, Menu, PanelLeftClose, PanelLeftOpen, RefreshCw, X } from "lucide-react";
 import { getNavigationItems } from "./navigation";
 import AnalysisView from "../pages/AnalysisPage";
 import CaseLibraryView from "../pages/CaseLibraryPage";
@@ -10,6 +11,7 @@ import ModelSettingsView from "../pages/ModelSettingsPage";
 import { ViewLoading } from "../components/WorkspacePrimitives";
 
 export default function WorkspaceShell({ controller }) {
+  const viewStageRef = useRef(null);
   const { navigation, workspace: workspaceState, analysis, history, caseLibrary } = controller;
   const { activeView, setActiveView, sidebarCollapsed, setSidebarCollapsed, mobileSidebarOpen, setMobileSidebarOpen } = navigation;
   const { data: workspace, error: workspaceError, loading: workspaceLoading, refresh: refreshWorkspace } = workspaceState;
@@ -38,15 +40,38 @@ export default function WorkspaceShell({ controller }) {
   const refreshBusy = showingCaseLibrary ? caseLibraryLoading : workspaceLoading;
   const handleRefresh = showingCaseLibrary ? refreshCaseLibrary : refreshWorkspace;
 
+  useEffect(() => {
+    viewStageRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, [activeView]);
+  const renderNavigationItem = (item) => {
+    const Icon = item.icon;
+    return (
+      <button
+        type="button"
+        key={item.id}
+        className={activeView === item.id ? "nav-item active" : "nav-item"}
+        aria-current={activeView === item.id ? "page" : undefined}
+        title={sidebarCollapsed ? item.label : undefined}
+        onClick={() => {
+          setActiveView(item.id);
+          setMobileSidebarOpen(false);
+        }}
+      >
+        <span><Icon size={18} /></span>
+        <strong>{item.label}</strong>
+      </button>
+    );
+  };
+
   return (
     <div className={`app-shell ${sidebarCollapsed ? "sidebar-is-collapsed" : ""}`}>
       <aside className={`sidebar ${mobileSidebarOpen ? "sidebar-open" : ""}`}>
         <div className="sidebar-top">
           <div className="brand">
-            <span className="brand-mark">A</span>
+            <span className="brand-mark" aria-hidden="true">✦</span>
             <div>
-              <strong>Academic Data Agent</strong>
-              <span>科研数据分析工作台</span>
+              <strong>Academic Agent</strong>
+              <span>研究与建模工作台</span>
             </div>
           </div>
           <button
@@ -57,38 +82,21 @@ export default function WorkspaceShell({ controller }) {
           >
             {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
           </button>
-          <button className="icon-button mobile-only" type="button" onClick={() => setMobileSidebarOpen(false)}>
+          <button className="icon-button mobile-only" type="button" aria-label="关闭导航" onClick={() => setMobileSidebarOpen(false)}>
             <X size={18} />
           </button>
         </div>
 
-        <nav className="nav-list">
-          {navigationItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                type="button"
-                key={item.id}
-                className={activeView === item.id ? "nav-item active" : "nav-item"}
-                aria-current={activeView === item.id ? "page" : undefined}
-                title={sidebarCollapsed ? item.label : undefined}
-                onClick={() => {
-                  setActiveView(item.id);
-                  setMobileSidebarOpen(false);
-                }}
-              >
-                <span>
-                  <Icon size={18} />
-                </span>
-                <strong>{item.label}</strong>
-              </button>
-            );
-          })}
+        <nav className="nav-list" aria-label="主导航">
+          <span className="nav-section-label">工作台</span>
+          {navigationItems.slice(0, 4).map(renderNavigationItem)}
+          <span className="nav-section-label">资源与设置</span>
+          {navigationItems.slice(4).map(renderNavigationItem)}
         </nav>
 
         <div className="sidebar-footer">
-          <span className={`status-dot ${status.state}`} />
-          <p>{status.message}</p>
+          <span className={`status-dot ${status.state}`} aria-hidden="true" />
+          <div><small>当前状态</small><p>{status.message}</p></div>
         </div>
       </aside>
 
@@ -96,7 +104,7 @@ export default function WorkspaceShell({ controller }) {
 
       <main className="main-panel">
         <header className="topbar">
-          <button className="icon-button mobile-only" type="button" onClick={() => setMobileSidebarOpen(true)}>
+          <button className="icon-button mobile-only" type="button" aria-label="打开导航" onClick={() => setMobileSidebarOpen(true)}>
             <Menu size={20} />
           </button>
           <div className="topbar-title">
@@ -105,25 +113,30 @@ export default function WorkspaceShell({ controller }) {
             </span>
             <div>
               <strong>{activeItem.label}</strong>
-              <span>{activeView === "settings" ? "当前服务会话" : (form.outputDir || "outputs")}</span>
+              <span>{activeItem.description}</span>
             </div>
           </div>
-          {activeView !== "settings" && (
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => handleRefresh()}
-              disabled={refreshBusy}
-            >
-              <RefreshCw className={refreshBusy ? "spin" : ""} size={16} />
-              {refreshBusy ? "刷新中" : "刷新"}
-            </button>
-          )}
+          <div className="topbar-actions">
+            {activeView !== "settings" && (
+              <span className="topbar-context"><FolderOutput size={15} />{form.outputDir || "outputs"}</span>
+            )}
+            {activeView !== "settings" && (
+              <button
+                className="secondary-button compact-button"
+                type="button"
+                onClick={() => handleRefresh()}
+                disabled={refreshBusy}
+              >
+                <RefreshCw className={refreshBusy ? "spin" : ""} size={16} />
+                {refreshBusy ? "刷新中" : "刷新"}
+              </button>
+            )}
+          </div>
         </header>
 
         {workspaceError && <div className="error-banner">{workspaceError}</div>}
 
-        <div className="view-stage" key={activeView}>
+        <div className="view-stage" key={activeView} ref={viewStageRef}>
           {activeView === "analysis" && (
             <AnalysisView
               form={form}
