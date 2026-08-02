@@ -1,4 +1,4 @@
-import { Activity, FileText, Loader2, Upload, X } from "lucide-react";
+import { Activity, FileText, Inbox, Loader2, Upload, X } from "lucide-react";
 import { formatBytes } from "../utils/formatters";
 
 function StatCard({ label, value, icon: Icon = Activity }) {
@@ -58,4 +58,15 @@ function FileInput({ label, description, accept, multiple = false, files, onChan
   );
 }
 
-export { StatCard, ViewLoading, FileInput };
+function EmptyState({ title, description, icon: Icon = Inbox, action = null }) {
+  return (
+    <div className="empty-state">
+      <span><Icon size={22} /></span>
+      <strong>{title}</strong>
+      {description && <p>{description}</p>}
+      {action}
+    </div>
+  );
+}
+
+export { EmptyState, FileInput, StatCard, ViewLoading };

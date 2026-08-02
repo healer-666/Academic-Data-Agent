@@ -146,6 +146,17 @@ export default function ModelSettingsView() {
             />
           </label>
           <label className="field">
+            <span>请求超时（秒）</span>
+            <input
+              type="number"
+              min="10"
+              max="600"
+              value={form.timeout}
+              onChange={(event) => update("timeout", event.target.value)}
+              inputMode="numeric"
+            />
+          </label>
+          <label className="field field-wide">
             <span>Base URL</span>
             <input
               type="url"
@@ -155,7 +166,7 @@ export default function ModelSettingsView() {
               autoComplete="url"
             />
           </label>
-          <label className="field">
+          <label className="field field-wide">
             <span>API Key</span>
             <div className="secret-field">
               <KeyRound size={17} />

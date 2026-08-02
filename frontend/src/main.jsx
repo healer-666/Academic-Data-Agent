@@ -2,6 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
 import WorkspacePrototype from "./prototype/WorkspacePrototype.jsx";
+import "./design-system.css";
 import "./styles.css";
 import "./prototype/workspace-prototype.css";
 
