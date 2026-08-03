@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Braces, Download, FileText, GitBranch, Link2, ShieldCheck, TableProperties } from "lucide-react";
+import { Braces, Download, FileText, GitBranch, Link2, TableProperties } from "lucide-react";
 import { toAbsoluteFileUrl } from "../api";
-import { StatCard, ViewLoading } from "../components/WorkspacePrimitives";
+import { ViewLoading } from "../components/WorkspacePrimitives";
 
 const LINEAGE_COLUMNS = [
   { type: "field", label: "字段", description: "分析实际读取或生成的数据列", icon: TableProperties },
@@ -91,9 +91,7 @@ function LineageView({
       <div className="lineage-main">
         <div className="lineage-heading">
           <div>
-            <span className="kicker">Evidence Lineage</span>
             <h1>{activePayload?.runId || "尚未选择运行记录"}</h1>
-            <p>从字段经过真实 Python 执行和观测结果，追溯到最终报告结论。</p>
           </div>
           <div className="lineage-actions">
             <label className="lineage-run-select">
@@ -124,14 +122,10 @@ function LineageView({
         ) : lineage?.available ? (
           <>
             <div className="lineage-summary">
-              <StatCard label="字段" value={summary.field_count ?? 0} icon={TableProperties} />
-              <StatCard label="报告结论" value={summary.claim_count ?? 0} icon={FileText} />
-              <StatCard label="有证据结论" value={summary.supported_claim_count ?? 0} icon={ShieldCheck} />
-              <StatCard
-                label="证据支持率"
-                value={`${Math.round(Number(summary.claim_support_rate ?? 0) * 100)}%`}
-                icon={Link2}
-              />
+              <span>字段 <strong>{summary.field_count ?? 0}</strong></span>
+              <span>报告结论 <strong>{summary.claim_count ?? 0}</strong></span>
+              <span>有证据结论 <strong>{summary.supported_claim_count ?? 0}</strong></span>
+              <span>证据支持率 <strong>{Math.round(Number(summary.claim_support_rate ?? 0) * 100)}%</strong></span>
             </div>
 
             <div className="lineage-flow" aria-label="字段到报告结论的血缘链">

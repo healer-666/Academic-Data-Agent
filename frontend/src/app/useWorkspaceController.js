@@ -15,7 +15,13 @@ import { DEFAULT_FORM } from "./defaults";
 
 export function useWorkspaceController() {
   const [activeView, setActiveView] = useState("analysis");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return window.localStorage.getItem("academic-agent-sidebar") === "collapsed";
+    } catch {
+      return false;
+    }
+  });
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [workspace, setWorkspace] = useState(null);
   const [workspaceError, setWorkspaceError] = useState("");
@@ -49,6 +55,14 @@ export function useWorkspaceController() {
   const workspaceRequestRef = useRef(0);
   const historyRequestRef = useRef(0);
   const caseRequestRef = useRef(0);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("academic-agent-sidebar", sidebarCollapsed ? "collapsed" : "expanded");
+    } catch {
+      // The workspace remains usable when storage is blocked.
+    }
+  }, [sidebarCollapsed]);
 
   const refreshWorkspace = useCallback(
     async (outputDir = form.outputDir) => {

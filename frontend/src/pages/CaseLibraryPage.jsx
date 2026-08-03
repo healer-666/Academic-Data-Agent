@@ -8,7 +8,7 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-import { StatCard, ViewLoading } from "../components/WorkspacePrimitives";
+import { ViewLoading } from "../components/WorkspacePrimitives";
 
 function MethodList({ title, items, icon: Icon = FlaskConical }) {
   if (!items?.length) return null;
@@ -39,7 +39,7 @@ function CaseDetail({ detail }) {
     <article className="case-detail-panel">
       <header className="case-detail-hero">
         <div>
-          <span className="kicker">{item.competition}</span>
+          <span className="case-eyebrow">{item.competition} · {item.year} 年 · {item.problemNumber} 题</span>
           <h2>{item.year} 年 {item.problemNumber} 题 · {item.title}</h2>
           <p>{item.problemSummary}</p>
         </div>
@@ -85,11 +85,11 @@ export default function CaseLibraryView({ library, detail, selectedCaseId, loadi
   if (loading && !library) return <ViewLoading message="正在加载竞赛案例库" />;
   const cases = library?.cases || [];
   return (
-    <section className="view-stack case-library-page">
-      <div className="stat-grid">
-        <StatCard label="内置版本" value={library?.version || "不可用"} icon={BookOpenCheck} />
-        <StatCard label="已审核案例" value={cases.length} icon={CheckCircle2} />
-        <StatCard label="经验库状态" value={library?.usable ? "可用" : "已降级"} icon={ShieldCheck} />
+    <section className="case-library-page">
+      <div className="case-library-meta">
+        <span><BookOpenCheck size={16} />版本 {library?.version || "不可用"}</span>
+        <span>{cases.length} 个已审核案例</span>
+        <span>{library?.usable ? "经验库可用" : "经验库已降级"}</span>
       </div>
 
       {(error || !library?.usable) && (
@@ -101,8 +101,8 @@ export default function CaseLibraryView({ library, detail, selectedCaseId, loadi
       )}
 
       <div className="case-library-layout">
-        <aside className="case-card-list panel">
-          <div className="section-header compact"><span className="kicker">Curated cases</span><h2>竞赛案例</h2></div>
+        <aside className="case-card-list">
+          <h2>竞赛案例</h2>
           {cases.length ? cases.map((item) => (
             <button
               type="button"
@@ -113,12 +113,12 @@ export default function CaseLibraryView({ library, detail, selectedCaseId, loadi
               <span>{item.year} · {item.problemNumber} 题</span>
               <strong>{item.title}</strong>
               <small>{item.methods?.slice(0, 3).join(" · ")}</small>
-              <em><CheckCircle2 size={13} />approved</em>
+              <em><CheckCircle2 size={13} />已审核</em>
             </button>
           )) : <p className="muted">当前没有可展示的已审核案例。</p>}
         </aside>
 
-        <div className="panel case-detail-container">
+        <div className="case-detail-container">
           {loading && selectedCaseId && !detail ? <ViewLoading message="正在加载案例详情" /> : <CaseDetail detail={detail} />}
         </div>
       </div>

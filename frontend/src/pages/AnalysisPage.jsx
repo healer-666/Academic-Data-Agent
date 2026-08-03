@@ -1,38 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
-  ArrowRight,
-  BarChart3,
   BookOpenCheck,
-  Check,
   CheckCircle2,
-  Database,
   FileSpreadsheet,
   FileText,
-  FlaskConical,
   Info,
   Link2,
   Loader2,
-  PackageCheck,
   Plus,
   RotateCcw,
   Save,
-  ScanSearch,
-  ShieldCheck,
-  Sparkles,
   Trash2,
 } from "lucide-react";
-import { FileInput } from "../components/WorkspacePrimitives";
+import AnalysisComposer from "../components/AnalysisComposer";
 import {
   ANALYSIS_SCENARIOS,
   getAnalysisScenario,
   selectAnalysisScenario,
 } from "../app/defaults";
-
-const SCENARIO_ICONS = {
-  general: Database,
-  modeling: FlaskConical,
-};
 
 const RELATION_STATUSES = [
   { value: "inferred", label: "系统推断" },
@@ -51,53 +37,23 @@ const RELATION_KINDS = [
 
 function ScenarioSelector({ selectedId, onSelect }) {
   return (
-    <div className="scenario-selector" aria-label="选择任务场景">
+    <div className="scenario-selector" role="tablist" aria-label="选择分析类型">
       {Object.values(ANALYSIS_SCENARIOS).map((item) => {
-        const Icon = SCENARIO_ICONS[item.id];
         const selected = selectedId === item.id;
         return (
           <button
-            className={`scenario-card ${selected ? "selected" : ""}`}
+            className={selected ? "selected" : ""}
             type="button"
             key={item.id}
+            role="tab"
             aria-pressed={selected}
             onClick={() => onSelect(item.id)}
           >
-            <span className="scenario-card-icon"><Icon size={22} /></span>
-            <span className="scenario-card-copy">
-              <strong>{item.label}</strong>
-              <small>{item.description}</small>
-            </span>
-            <span className="scenario-card-state" aria-hidden="true">
-              {selected ? <Check size={16} /> : <ArrowRight size={16} />}
-            </span>
+            {item.shortLabel}
           </button>
         );
       })}
     </div>
-  );
-}
-
-function StrategySummary({ scenario }) {
-  return (
-    <section className={`strategy-summary strategy-${scenario.id}`} aria-label="系统采用的分析策略">
-      <header>
-        <span><Sparkles size={16} /></span>
-        <div>
-          <small>系统将自动采用</small>
-          <strong>{scenario.strategyTitle}</strong>
-        </div>
-      </header>
-      <ul>
-        {scenario.strategySummary.map((item) => (
-          <li key={item}><Check size={14} /> {item}</li>
-        ))}
-      </ul>
-      <footer>
-        <PackageCheck size={15} />
-        <span>目标产物：{scenario.deliverable}</span>
-      </footer>
-    </section>
   );
 }
 
@@ -275,9 +231,8 @@ function ModelingPackageReview({ packageData, busy, onSave, onReset }) {
     <section className="modeling-package-review" aria-label="赛题资料包审核">
       <header className="package-review-header">
         <div>
-          <span className="kicker">Modeling package review</span>
-          <h2>检查系统识别的赛题资料</h2>
-          <p>确认主表、字段质量和表间关系。这里保存的修正会作为后续分析方案的正式输入。</p>
+          <h2>确认赛题资料</h2>
+          <p>检查主表、字段质量和表间关系。</p>
         </div>
         <span className={`package-status ${packageData.status}`}>
           {packageData.status === "confirmed" ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
@@ -389,8 +344,7 @@ function ModelingPlanReview({ plan, busy, onSave }) {
     <section className="modeling-plan-review" aria-label="案例启发的分析方案">
       <header className="plan-review-header">
         <div>
-          <span className="kicker">Case-informed plan</span>
-          <h2>检查案例启发的分析方案</h2>
+          <h2>推荐分析方案</h2>
           <p>{plan.summary}</p>
         </div>
         <span className={`package-status ${confirmed ? "confirmed" : "needs_review"}`}>
@@ -460,7 +414,7 @@ function ModelingPlanReview({ plan, busy, onSave }) {
           {confirmed ? "方案已确认" : "确认分析方案"}
         </button>
       </footer>
-      {confirmed && <div className="package-next-step"><CheckCircle2 size={18} /><div><strong>方案已进入审计记录</strong><span>后续分析执行会严格使用已确认方案；执行工作区由 Issue #16 接续。</span></div></div>}
+      {confirmed && <div className="package-next-step"><CheckCircle2 size={18} /><div><strong>方案已确认</strong><span>后续分析将使用这份方案。</span></div></div>}
     </section>
   );
 }
@@ -504,102 +458,91 @@ function AnalysisView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [packageInputKey]);
 
-  const handleSubmit = (event) => {
-    if (!modeling) {
-      onSubmit(event);
-      return;
-    }
-    event.preventDefault();
-    onInspectModeling();
+  const handleSubmit = () => {
+    if (modeling) onInspectModeling();
+    else onSubmit({ preventDefault() {} });
   };
+  const fileGroups = modeling
+    ? [
+      {
+        id: "problem",
+        label: "上传赛题说明",
+        shortLabel: "赛题",
+        hint: "TXT、Markdown 或 PDF",
+        accept: ".txt,.md,.pdf",
+        files: problemFile ? [problemFile] : [],
+        onSelect: (files) => setProblemFile(files[0] || null),
+        onRemove: () => setProblemFile(null),
+      },
+      {
+        id: "modeling-data",
+        label: "上传赛题数据",
+        shortLabel: "数据",
+        hint: "CSV 或 Excel，可多选",
+        accept: ".csv,.xls,.xlsx",
+        multiple: true,
+        files: modelingDataFiles,
+        onSelect: (files) => setModelingDataFiles((current) => [...current, ...files]),
+        onRemove: (index) => setModelingDataFiles((current) => current.filter((_, itemIndex) => itemIndex !== index)),
+      },
+      {
+        id: "attachment",
+        label: "上传必要附件",
+        shortLabel: "附件",
+        hint: "文档、图片或补充表格",
+        accept: ".txt,.md,.pdf,.doc,.docx,.png,.jpg,.jpeg,.csv,.xls,.xlsx",
+        multiple: true,
+        files: modelingAttachments,
+        onSelect: (files) => setModelingAttachments((current) => [...current, ...files]),
+        onRemove: (index) => setModelingAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index)),
+      },
+    ]
+    : [
+      {
+        id: "main-data",
+        label: "上传主要数据",
+        shortLabel: "数据",
+        hint: "CSV 或 Excel",
+        accept: ".csv,.xls,.xlsx",
+        files: dataFile ? [dataFile] : [],
+        onSelect: (files) => setDataFile(files[0] || null),
+        onRemove: () => setDataFile(null),
+      },
+      {
+        id: "reference",
+        label: "上传参考资料",
+        shortLabel: "参考",
+        hint: "TXT、Markdown 或 PDF，可多选",
+        accept: ".txt,.md,.pdf",
+        multiple: true,
+        files: knowledgeFiles,
+        onSelect: (files) => setKnowledgeFiles((current) => [...current, ...files]),
+        onRemove: (index) => setKnowledgeFiles((current) => current.filter((_, itemIndex) => itemIndex !== index)),
+      },
+    ];
+  const busy = modeling ? modelingBusy : isRunning;
+  const disabled = busy || (modeling ? !modelingReady : !dataFile);
 
   return (
-    <section className="chat-page analysis-grid analysis-task-creation">
-      <div className="task-creation-grid">
-        <div className="task-primary-column">
-          <div className="chat-body">
-            <div className="chat-welcome task-welcome">
-              <span className="kicker">New research task</span>
-              <h1>从一个清楚的问题开始</h1>
-              <p>选择工作方式，说明你想解决的问题并添加资料。系统会先检查输入，再安排分析与验证。</p>
-            </div>
-            <ScenarioSelector selectedId={scenario.id} onSelect={selectScenario} />
-            <StrategySummary scenario={scenario} />
-          </div>
-
-          <form className="analysis-form chat-input-panel task-input-panel" onSubmit={handleSubmit}>
-            <div className="task-context-row">
-              <span className={`task-context-badge ${scenario.id}`}>
-                {modeling ? <FlaskConical size={15} /> : <BarChart3 size={15} />}
-                {scenario.label}
-              </span>
-              <span>{scenario.inputHint}</span>
-            </div>
-            <div className="chat-input-panel-inner">
-              <label className="field field-wide task-query-field">
-                <span>{modeling ? "赛题目标与补充要求" : "分析问题"}</span>
-                <textarea rows={5} value={form.query} onChange={(event) => update("query", event.target.value)} placeholder={scenario.queryPlaceholder} />
-              </label>
-            </div>
-            {scenario.boundary && <div className="scenario-boundary"><Info size={15} /><span>{scenario.boundary}</span></div>}
-
-            <div className="chat-input-actions task-input-actions">
-              {modeling ? (
-                <>
-                  <FileInput
-                    label="赛题说明"
-                    description="一份 TXT / MD / 可提取文本的 PDF"
-                    accept=".txt,.md,.pdf"
-                    files={problemFile ? [problemFile] : []}
-                    onChange={(files) => setProblemFile(files[0] || null)}
-                    onClear={() => setProblemFile(null)}
-                  />
-                  <FileInput
-                    label="赛题数据"
-                    description="可一次选择多份 CSV / XLS / XLSX"
-                    accept=".csv,.xls,.xlsx"
-                    multiple
-                    files={modelingDataFiles}
-                    onChange={setModelingDataFiles}
-                    onClear={() => setModelingDataFiles([])}
-                  />
-                  <FileInput
-                    label="必要附件"
-                    description="可选：说明、图片、补充表格等"
-                    accept=".txt,.md,.pdf,.doc,.docx,.png,.jpg,.jpeg,.csv,.xls,.xlsx"
-                    multiple
-                    files={modelingAttachments}
-                    onChange={setModelingAttachments}
-                    onClear={() => setModelingAttachments([])}
-                  />
-                </>
-              ) : (
-                <>
-                  <FileInput label="主要数据" description="CSV / XLS / XLSX" accept=".csv,.xls,.xlsx" files={dataFile ? [dataFile] : []} onChange={(files) => setDataFile(files[0] || null)} onClear={() => setDataFile(null)} />
-                  <FileInput label="参考资料" description="TXT / MD / PDF" accept=".txt,.md,.pdf" multiple files={knowledgeFiles} onChange={setKnowledgeFiles} onClear={() => setKnowledgeFiles([])} />
-                </>
-              )}
-
-              {modelingError && <div className="modeling-package-error"><AlertTriangle size={16} />{modelingError}</div>}
-              <div className="task-trust-note"><ShieldCheck size={15} /><span>{modeling ? "文件会先形成可审核资料包，不会在你确认关系前开始分析" : "运行参数由场景自动配置，过程与结果均保留审计记录"}</span></div>
-              <button className="primary-button chat-input-send" type="submit" disabled={modeling ? (modelingBusy || !modelingReady) : (isRunning || !dataFile)}>
-                {(modelingBusy || isRunning) ? <Loader2 className="spin" size={18} /> : (modeling ? <ScanSearch size={18} /> : <FileText size={18} />)}
-                <span>{modeling ? (modelingBusy ? "正在识别资料" : "识别并检查资料包") : (isRunning ? "任务运行中" : `开始${scenario.shortLabel}`)}</span>
-              </button>
-            </div>
-          </form>
-        </div>
-        <aside className="task-guidance-panel" aria-label="任务流程说明">
-          <span className="kicker">How it works</span>
-          <h2>{modeling ? "先理解资料，再开始建模" : "一次可追溯的分析流程"}</h2>
-          <ol className="task-workflow">
-            <li className="active"><span>1</span><div><strong>描述问题</strong><p>说明目标、限制和你关心的判断。</p></div></li>
-            <li className={modelingPackage ? "active" : ""}><span>2</span><div><strong>{modeling ? "审核资料" : "检查数据"}</strong><p>{modeling ? "确认表结构、字段质量与表间关系。" : "识别字段、质量风险和分析边界。"}</p></div></li>
-            <li className={modelingPackage?.analysisPlan ? "active" : ""}><span>3</span><div><strong>{modeling ? "确认方案" : "执行与验证"}</strong><p>{modeling ? "查看案例依据、候选模型与验证方法。" : "运行分析并留下可复现记录。"}</p></div></li>
-            <li><span>4</span><div><strong>阅读交付</strong><p>在结果中心查看报告、可信度和文件。</p></div></li>
-          </ol>
-          <div className="task-guidance-note"><ShieldCheck size={17} /><span>原始资料留在本地工作区；关键操作会进入审计记录。</span></div>
-        </aside>
+    <section className="analysis-workspace">
+      <div className="analysis-start">
+        <h1>今天想分析什么？</h1>
+        <ScenarioSelector selectedId={scenario.id} onSelect={selectScenario} />
+        <AnalysisComposer
+          value={form.query}
+          onChange={(value) => update("query", value)}
+          placeholder={modeling ? "描述赛题目标、限制条件或希望重点解决的问题" : "描述你想从数据中了解的问题"}
+          fileGroups={fileGroups}
+          disabled={disabled}
+          busy={busy}
+          actionLabel={modeling ? "检查赛题资料" : "开始分析"}
+          busyLabel={modeling ? "正在检查资料" : "分析进行中"}
+          onSubmit={handleSubmit}
+        />
+        <p className="composer-note">
+          {modeling ? "上传赛题说明与数据后，系统会先检查资料结构。" : "适合表格数据分析、统计检验和报告生成。"}
+        </p>
+        {modelingError && <div className="inline-notice error" role="alert"><AlertTriangle size={16} />{modelingError}</div>}
       </div>
 
       {modeling && modelingPackage && (

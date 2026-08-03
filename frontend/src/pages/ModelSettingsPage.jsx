@@ -109,33 +109,30 @@ export default function ModelSettingsView() {
   };
 
   return (
-    <section className="view-stack model-settings-page">
-      <div className="settings-intro">
-        <span className="kicker">Model Connection</span>
-        <h1>连接你的模型服务</h1>
-        <p>在网页中设置兼容的模型接口。配置仅保存在当前后端进程内存中，服务重启后会自动清除。</p>
-      </div>
+    <section className="model-settings-page">
+      <aside className="settings-navigation">
+        <h1>设置</h1>
+        <button className="active" type="button">模型服务</button>
+      </aside>
 
-      <div className={`model-status-card ${status?.configured ? "configured" : ""}`}>
-        <span className="model-status-icon">
-          {status?.configured ? <CheckCircle2 size={22} /> : <ShieldCheck size={22} />}
-        </span>
-        <div>
-          <small>当前来源</small>
-          <strong>{loading ? "正在检查…" : statusLabel(status)}</strong>
-          <p>{status?.message || "正在读取安全配置状态。"}</p>
-        </div>
-        {status?.connectionStatus === "connected" && <span className="status-pill success">连接正常</span>}
-        {status?.connectionStatus === "failed" && <span className="status-pill error">连接失败</span>}
-      </div>
-
-      <form className="panel model-settings-form" onSubmit={handleSave}>
-        <header className="section-header">
-          <h2>模型 API</h2>
-          <p>支持 OpenAI 兼容接口及项目已有的 Anthropic Messages 兼容地址。</p>
+      <main className="settings-content">
+        <header className="settings-intro">
+          <h2>模型服务</h2>
+          <p>配置当前会话使用的兼容模型接口。</p>
         </header>
 
-        <div className="settings-fields">
+        <section className="settings-status-section">
+          <div>
+            {status?.configured ? <CheckCircle2 size={19} /> : <ShieldCheck size={19} />}
+            <span><small>当前配置</small><strong>{loading ? "正在检查…" : statusLabel(status)}</strong></span>
+          </div>
+          {status?.connectionStatus === "connected" && <span className="status-pill success">连接正常</span>}
+          {status?.connectionStatus === "failed" && <span className="status-pill error">连接失败</span>}
+        </section>
+
+        <form className="model-settings-form" onSubmit={handleSave}>
+          <div className="settings-section-heading"><h3>接口配置</h3><p>支持 OpenAI 兼容接口及项目已有的 Anthropic Messages 兼容地址。</p></div>
+          <div className="settings-fields">
           <label className="field">
             <span>模型名称</span>
             <input
@@ -179,40 +176,38 @@ export default function ModelSettingsView() {
               />
             </div>
           </label>
-        </div>
-
-        {message && (
-          <div className={`settings-message ${message.type}`} role="status">
-            {message.type === "success" ? <CheckCircle2 size={17} /> : <ShieldCheck size={17} />}
-            <span>{message.text}</span>
           </div>
-        )}
 
-        <div className="settings-actions">
-          <button className="primary-button" type="submit" disabled={Boolean(action)}>
-            {action === "save" ? <Loader2 className="spin" size={17} /> : <Save size={17} />}
-            保存到本次会话
-          </button>
-          <button className="secondary-button" type="button" onClick={handleTest} disabled={Boolean(action)}>
-            {action === "test" ? <Loader2 className="spin" size={17} /> : <PlugZap size={17} />}
-            测试连接
-          </button>
-          {status?.source === "web" && (
-            <button className="text-button" type="button" onClick={handleClear} disabled={Boolean(action)}>
-              {action === "clear" ? <Loader2 className="spin" size={16} /> : <RotateCcw size={16} />}
-              恢复环境文件配置
-            </button>
+          {message && (
+            <div className={`settings-message ${message.type}`} role="status">
+              {message.type === "success" ? <CheckCircle2 size={17} /> : <ShieldCheck size={17} />}
+              <span>{message.text}</span>
+            </div>
           )}
-        </div>
-      </form>
 
-      <aside className="settings-security-note">
-        <ShieldCheck size={18} />
-        <div>
-          <strong>密钥保护</strong>
-          <p>API Key 不会出现在状态接口、分析日志、报告、下载文件或版本控制中。连接测试也不会启动分析任务。</p>
-        </div>
-      </aside>
+          <div className="settings-actions">
+            <button className="primary-button" type="submit" disabled={Boolean(action)}>
+              {action === "save" ? <Loader2 className="spin" size={17} /> : <Save size={17} />}
+              保存
+            </button>
+            <button className="secondary-button" type="button" onClick={handleTest} disabled={Boolean(action)}>
+              {action === "test" ? <Loader2 className="spin" size={17} /> : <PlugZap size={17} />}
+              测试连接
+            </button>
+            {status?.source === "web" && (
+              <button className="text-button" type="button" onClick={handleClear} disabled={Boolean(action)}>
+                {action === "clear" ? <Loader2 className="spin" size={16} /> : <RotateCcw size={16} />}
+                恢复环境配置
+              </button>
+            )}
+          </div>
+        </form>
+
+        <section className="settings-security-note">
+          <ShieldCheck size={18} />
+          <div><strong>密钥保护</strong><p>API Key 仅保存在当前后端进程内存中，不会写入项目文件、日志或报告。</p></div>
+        </section>
+      </main>
     </section>
   );
 }

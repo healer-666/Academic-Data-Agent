@@ -1,7 +1,7 @@
-import { History, Loader2, MessageSquareText } from "lucide-react";
+import { ArrowUp, History, Loader2, SlidersHorizontal } from "lucide-react";
 import InteractiveReportView from "../components/InteractiveReportView";
 import MarkdownView from "../components/MarkdownView";
-import { ViewLoading } from "../components/WorkspacePrimitives";
+import { EmptyState, ViewLoading } from "../components/WorkspacePrimitives";
 import { compactStatus } from "../utils/formatters";
 
 function HistoryView({
@@ -22,112 +22,93 @@ function HistoryView({
   onAskQuestion,
 }) {
   const runs = workspace?.historyRuns || [];
+  const handleKeyDown = (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && qaQuestion.trim() && !qaLoading) {
+      event.preventDefault();
+      onAskQuestion();
+    }
+  };
+
   return (
     <section className="history-layout">
-      <aside className="panel history-list-panel">
-        <div className="section-header compact">
-          <span className="kicker">History</span>
-          <h2>历史运行</h2>
-        </div>
+      <aside className="history-list" aria-label="历史任务">
+        <h2>历史任务</h2>
         <div className="run-list">
-          {runs.length ? (
-            runs.map((run) => (
-              <button
-                type="button"
-                className={run.runId === selectedRunId ? "run-card active" : "run-card"}
-                key={run.runId}
-                onClick={() => {
-                  setSelectedRunId(run.runId);
-                }}
-              >
-                <strong>{run.runId}</strong>
-                <span>{run.domain} · {compactStatus(run.reviewStatus)}</span>
-                <em>{run.timestamp}</em>
-              </button>
-            ))
-          ) : (
-            <p className="muted">还没有可浏览的历史记录。</p>
-          )}
+          {runs.length ? runs.map((run) => (
+            <button type="button" className={run.runId === selectedRunId ? "active" : ""} key={run.runId} onClick={() => setSelectedRunId(run.runId)}>
+              <strong>{run.runId}</strong>
+              <span>{run.domain || "数据分析"}</span>
+              <small>{run.timestamp} · {compactStatus(run.reviewStatus)}</small>
+            </button>
+          )) : <p>还没有历史任务。</p>}
         </div>
       </aside>
 
-      <div className="view-stack history-content-stack">
-        <div className="panel follow-up-panel">
-          <div className="section-header compact">
-            <span className="kicker">Follow-up</span>
-            <h2>历史追问</h2>
-          </div>
-          <div className="qa-grid">
-            <label className="field select-field">
-              <span>追问方式</span>
-              <select value={qaMode} onChange={(event) => setQaMode(event.target.value)}>
-                <option value="single">单次追问</option>
-                <option value="compare">跨运行对比</option>
-              </select>
-            </label>
-            <div className="qa-run-picker">
-              {(workspace?.historyQaRuns || []).slice(0, 8).map((run) => (
-                <label className={qaSelected.includes(run.runId) ? "qa-chip selected" : "qa-chip"} key={run.runId}>
-                  <input
-                    type="checkbox"
-                    checked={qaSelected.includes(run.runId)}
-                    onChange={(event) => {
-                      setQaSelected((current) =>
-                        event.target.checked
-                          ? [...new Set([...current, run.runId])]
-                          : current.filter((item) => item !== run.runId),
-                      );
-                    }}
-                  />
-                  {run.runId}
-                </label>
-              ))}
-            </div>
-            <label className="field field-wide">
-              <span>问题</span>
-              <textarea
-                rows={3}
-                value={qaQuestion}
-                onChange={(event) => setQaQuestion(event.target.value)}
-                placeholder="例如：哪次报告没有通过审阅？上次用了什么统计方法？"
-              />
-            </label>
-            <button className="primary-button" type="button" onClick={onAskQuestion} disabled={qaLoading || !qaQuestion.trim()}>
-              {qaLoading ? <Loader2 className="spin" size={18} /> : <MessageSquareText size={18} />}
-              开始追问
-            </button>
-          </div>
-          {qaResult && (
-            <div className="qa-result">
-              <MarkdownView content={qaResult.answerMarkdown} />
-              <div className="source-list">
-                <strong>来源</strong>
-                {(qaResult.sources || []).map((source) => <span key={source}>{source}</span>)}
-                {(qaResult.warnings || []).map((warning) => <em key={warning}>{warning}</em>)}
+      <div className="conversation-workspace">
+        <div className="conversation-thread">
+          {historyLoading ? (
+            <ViewLoading message="正在加载历史报告" />
+          ) : historyDetail ? (
+            <section className="assistant-message">
+              <span className="assistant-mark" aria-hidden="true">A</span>
+              <div>
+                <div className="message-meta">{historyDetail.runId}</div>
+                <InteractiveReportView
+                  runId={historyDetail.runId}
+                  outputDir={outputDir}
+                  reportMarkdown={historyDetail.reportMarkdown}
+                  figures={historyDetail.figures || []}
+                  available={historyDetail.interactiveReportAvailable}
+                />
               </div>
-            </div>
+            </section>
+          ) : (
+            <EmptyState title="选择一个历史任务" description="打开报告后，可以围绕已有结果继续追问。" icon={History} />
+          )}
+
+          {qaResult && (
+            <>
+              <div className="user-message"><p>{qaQuestion}</p></div>
+              <section className="assistant-message follow-up-answer">
+                <span className="assistant-mark" aria-hidden="true">A</span>
+                <div>
+                  <MarkdownView content={qaResult.answerMarkdown} />
+                  {(qaResult.sources?.length > 0 || qaResult.warnings?.length > 0) && (
+                    <details className="answer-sources">
+                      <summary>来源与提示</summary>
+                      {qaResult.sources?.map((source) => <p key={source}>{source}</p>)}
+                      {qaResult.warnings?.map((warning) => <p className="warning" key={warning}>{warning}</p>)}
+                    </details>
+                  )}
+                </div>
+              </section>
+            </>
           )}
         </div>
 
-        {historyLoading ? (
-          <div className="panel report-panel">
-            <ViewLoading message="正在加载历史报告" />
+        <div className="history-composer-wrap">
+          <div className="history-composer">
+            <textarea rows={2} value={qaQuestion} onChange={(event) => setQaQuestion(event.target.value)} onKeyDown={handleKeyDown} placeholder="继续追问这份分析…" />
+            <div className="history-composer-footer">
+              <details className="history-options">
+                <summary title="追问范围"><SlidersHorizontal size={17} />追问范围</summary>
+                <div>
+                  <label>方式<select value={qaMode} onChange={(event) => setQaMode(event.target.value)}><option value="single">单次追问</option><option value="compare">跨运行对比</option></select></label>
+                  <fieldset>
+                    <legend>参考任务</legend>
+                    {(workspace?.historyQaRuns || []).slice(0, 8).map((run) => (
+                      <label key={run.runId}><input type="checkbox" checked={qaSelected.includes(run.runId)} onChange={(event) => setQaSelected((current) => event.target.checked ? [...new Set([...current, run.runId])] : current.filter((item) => item !== run.runId))} />{run.runId}</label>
+                    ))}
+                  </fieldset>
+                </div>
+              </details>
+              <button type="button" className="composer-submit" onClick={onAskQuestion} disabled={qaLoading || !qaQuestion.trim()} aria-label="发送追问">
+                {qaLoading ? <Loader2 className="spin" size={18} /> : <ArrowUp size={18} />}
+              </button>
+            </div>
           </div>
-        ) : historyDetail ? (
-          <InteractiveReportView
-            runId={historyDetail.runId}
-            outputDir={outputDir}
-            reportMarkdown={historyDetail.reportMarkdown}
-            figures={historyDetail.figures || []}
-            available={historyDetail.interactiveReportAvailable}
-          />
-        ) : (
-          <div className="panel report-panel">
-            <p className="muted">请选择左侧记录。</p>
-          </div>
-        )}
-
-
+          <small>Ctrl + Enter 发送</small>
+        </div>
       </div>
     </section>
   );

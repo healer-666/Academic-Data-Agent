@@ -1,45 +1,44 @@
 # Academic Agent design system
 
-This application uses a warm editorial product language inspired by the Claude analysis in VoltAgent/awesome-design-md. It adapts that language to a dense, long-lived research workspace rather than reproducing a marketing page.
+Academic Agent uses a quiet, conversation-first workspace language. The interface should feel like an AI tool: one clear action at a time, generous whitespace, document-style output, and progressive disclosure for technical detail.
 
 ## Principles
 
-- Calm before decorative: hierarchy comes from typography, spacing, borders, and surface contrast.
-- Warm and trustworthy: use cream canvas, warm ink, restrained coral actions, and muted semantic colors.
-- Editorial reading: reports and case details use a comfortable reading column and regular-weight serif display headings; controls and body copy use a humanist system sans stack.
-- Product first: dark surfaces are reserved for execution logs and technical evidence. Primary coral is scarce and denotes the next meaningful action.
-- One visual language: pages share the same shell, header, panel, status, form, table, and empty-state rules.
-- Accessible by default: visible focus, sufficient contrast, 40px primary targets, semantic labels, and responsive collapse without hiding core actions.
+- The page background is the default container. Add a surface only when the object is independently interactive or floating.
+- New analysis has one focal point: the composer. Mode, attachments, and submit actions live inside or immediately around it.
+- Use typography, alignment, spacing, and hairlines before cards, borders, color, or shadow.
+- Keep product copy short. Internal workflow, audit, and implementation detail stays collapsed until requested.
+- Reports and case details use a reading column; history uses a conversation column; lineage gets a dedicated canvas.
+- Preserve every business action while shortening the path to it.
 
 ## Tokens
 
 The canonical implementation is `frontend/src/design-system.css`.
 
-- Canvas: `#F7F3EE`
-- Surface: `#FFFDFB`
-- Soft surface: `#F4EEE7`
-- Ink: `#26221F`
-- Muted text: `#6E655F`
-- Hairline: `#E4DBD1`
-- Primary coral: `#C56F55`
-- Dark technical surface: `#1D1B19`
-- Spacing: 4, 8, 12, 16, 20, 24, 32, 40, 48px
-- Radius: 7px controls, 10px inputs, 14px panels, 18px major work areas
-- Elevation: borders first; shadows only for floating overlays and the main composer
+- Background: `#f8f7f4`
+- Sidebar: `#f1efe9`
+- Surface: `#ffffff`
+- Subtle surface: `#f3f1ec`
+- Primary text: `#24221f`
+- Secondary text: `#6f6b64`
+- Hairline: `rgba(36, 34, 31, 0.10)`
+- Accent: `#cc785c`, reserved for primary actions and limited state
+- Radius: 8–10px for controls, 18–24px for the main composer
+- Elevation: none by default; only menus, drawers, dialogs, and the composer may use a light shadow
+- Motion: 150ms for controls and 200ms for layout, always `ease-out`
 
 ## Interface rules
 
-- Sidebar navigation is grouped into workspace actions and resources/settings.
-- The top header names the current module, explains its purpose, and exposes only necessary context/actions.
-- Main content is capped at 1320px and keeps generous outer breathing room.
-- Forms use white/cream fields with coral focus rings; upload inputs share one treatment.
-- Reports, case details, and answers prioritize line length and reading rhythm over dashboard density.
-- Status is communicated by text and icon as well as color.
-- Desktop grids collapse to one or two columns at tablet widths; mobile navigation becomes a cream overlay sheet.
+- Desktop sidebar is 264px expanded and 60px collapsed. The expand control remains in the main layout when the sidebar is collapsed.
+- Mobile sidebar is a dismissible drawer with backdrop, Escape support, and scroll lock.
+- The top bar contains only the sidebar control, page name, meaningful task status, files, and refresh.
+- New analysis uses a light segmented control and a single 900px composer with an attachment menu and per-file removal.
+- Results use tabs and document flow. Logs, audit detail, and source evidence are progressively disclosed.
+- History uses a compact task list, direct document/assistant content, and a sticky composer.
+- Case library uses a master-detail reading layout; knowledge uses a file table; settings use categories and divided sections.
 
 ## Avoid
 
-- Cool-blue admin-template styling, gradients, glassmorphism, neon accents, or thick shadows.
-- Coral used as decoration rather than action or selection.
-- Multiple arbitrary card colors or deeply nested cards with equal visual weight.
-- Marketing hero patterns that displace the actual research workflow.
+- Dashboard card walls, nested cards, decorative English kickers, oversized marketing titles, or explanatory process panels.
+- Large dark blocks, saturated accent coverage, thick shadows, gradients, glass effects, and ornamental icons.
+- Showing raw logs, internal policies, or audit mechanics before the user asks for them.
