@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import sys
 import unittest
 from pathlib import Path
@@ -77,6 +78,7 @@ class ReportingTests(unittest.TestCase):
     def test_normalize_markdown_image_paths_converts_relative_outputs_path(self):
         figure_path = PROJECT_ROOT / "outputs" / "run_demo" / "figures" / "review_round_1" / "chart.png"
         figure_path.parent.mkdir(parents=True, exist_ok=True)
+        self.addCleanup(lambda: shutil.rmtree(PROJECT_ROOT / "outputs" / "run_demo", ignore_errors=True))
         figure_path.write_text("fake", encoding="utf-8")
         markdown = "![chart](outputs/run_demo/figures/review_round_1/chart.png)"
 
@@ -87,6 +89,7 @@ class ReportingTests(unittest.TestCase):
     def test_normalize_markdown_image_paths_keeps_absolute_paths(self):
         absolute = (PROJECT_ROOT / "outputs" / "run_demo" / "figures" / "chart_abs.png").resolve()
         absolute.parent.mkdir(parents=True, exist_ok=True)
+        self.addCleanup(lambda: shutil.rmtree(PROJECT_ROOT / "outputs" / "run_demo", ignore_errors=True))
         absolute.write_text("fake", encoding="utf-8")
         markdown = f"![chart]({absolute.as_posix()})"
 

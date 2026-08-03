@@ -13,4 +13,18 @@ export const formatDuration = (durationMs) => {
   return `${(value / 1000).toFixed(1)}s`;
 };
 
-export const compactStatus = (value) => String(value || "unknown").replaceAll("_", " ");
+const STATUS_LABELS = {
+  unknown: "待识别",
+  accepted: "已通过",
+  completed: "已完成",
+  failed: "失败",
+  skipped: "已跳过",
+  not_checked: "未检查",
+  not_needed: "无需处理",
+  unavailable: "不可用",
+};
+
+export const compactStatus = (value) => {
+  const normalized = String(value || "unknown").trim().toLowerCase();
+  return STATUS_LABELS[normalized] || normalized.replaceAll("_", " ");
+};

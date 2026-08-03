@@ -85,6 +85,42 @@ def _infer_timestamp_from_name(run_dir: Path) -> str:
     return name
 
 
+def _is_viewable_figure(path: Path) -> bool:
+    """Reject mislabeled or truncated image artifacts before they reach the browser."""
+
+    try:
+        size = path.stat().st_size
+        suffix = path.suffix.lower()
+        if suffix == ".svg":
+            if size < 11:
+                return False
+            with path.open("rb") as handle:
+                prefix = handle.read(2048).lstrip(b"\xef\xbb\xbf\x00\t\r\n ").lower()
+            return b"<svg" in prefix
+
+        with path.open("rb") as handle:
+            prefix = handle.read(32)
+        if suffix == ".png":
+            return (
+                size >= 33
+                and prefix.startswith(b"\x89PNG\r\n\x1a\n")
+                and prefix[12:16] == b"IHDR"
+                and int.from_bytes(prefix[16:20], "big") > 0
+                and int.from_bytes(prefix[20:24], "big") > 0
+            )
+        if suffix in {".jpg", ".jpeg"}:
+            if size < 4 or not prefix.startswith(b"\xff\xd8\xff"):
+                return False
+            with path.open("rb") as handle:
+                handle.seek(-2, 2)
+                return handle.read(2) == b"\xff\xd9"
+        if suffix == ".webp":
+            return size >= 20 and prefix.startswith(b"RIFF") and prefix[8:12] == b"WEBP"
+    except (OSError, ValueError):
+        return False
+    return False
+
+
 def _collect_figure_paths(run_dir: Path, trace_payload: dict[str, object]) -> tuple[Path, ...]:
     telemetry = trace_payload.get("telemetry", {})
     if isinstance(telemetry, dict):
@@ -95,7 +131,11 @@ def _collect_figure_paths(run_dir: Path, trace_payload: dict[str, object]) -> tu
                 for item in figure_values
                 if str(item).strip()
             ]
-            return tuple(path for path in resolved if path is not None)
+            return tuple(
+                path
+                for path in resolved
+                if path is not None and path.is_file() and _is_viewable_figure(path)
+            )
 
     figure_dir = run_dir / "figures"
     if not figure_dir.exists():
@@ -104,7 +144,9 @@ def _collect_figure_paths(run_dir: Path, trace_payload: dict[str, object]) -> tu
     image_paths = sorted(
         path
         for path in figure_dir.rglob("*")
-        if path.is_file() and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".svg", ".webp"}
+        if path.is_file()
+        and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".svg", ".webp"}
+        and _is_viewable_figure(path)
     )
     return tuple(image_paths)
 
@@ -200,10 +242,10 @@ def scan_run_history(outputs_root: str | Path = "outputs", *, limit: int | None 
         key=lambda item: item.stat().st_mtime,
         reverse=True,
     )
-    if limit is not None:
-        candidates = candidates[: max(0, int(limit))]
     entries = [_build_history_entry(candidate) for candidate in candidates]
-    return sorted(entries, key=lambda item: (item.timestamp, item.run_dir.name), reverse=True)
+    entries = [entry for entry in entries if entry.report_path or entry.trace_path or entry.cleaned_data_path]
+    entries = sorted(entries, key=lambda item: (item.timestamp, item.run_dir.name), reverse=True)
+    return entries[: max(0, int(limit))] if limit is not None else entries
 
 
 def find_run_history(run_id: str, outputs_root: str | Path = "outputs") -> RunHistoryEntry | None:
@@ -217,4 +259,7 @@ def find_run_history(run_id: str, outputs_root: str | Path = "outputs") -> RunHi
         or not candidate.name.startswith("run_")
     ):
         return None
-    return _build_history_entry(candidate)
+    entry = _build_history_entry(candidate)
+    if not (entry.report_path or entry.trace_path or entry.cleaned_data_path):
+        return None
+    return entry

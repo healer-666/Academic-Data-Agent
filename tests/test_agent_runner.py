@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 import unittest
 import uuid
@@ -415,6 +416,7 @@ class AgentRunnerTests(unittest.TestCase):
         )
         report_path = PROJECT_ROOT / "outputs" / "run_20260315_153022" / "final_report.md"
         report_path.parent.mkdir(parents=True, exist_ok=True)
+        self.addCleanup(lambda: shutil.rmtree(report_path.parent, ignore_errors=True))
 
         reviewer_task = _build_reviewer_task(
             data_context=data_context,
@@ -463,6 +465,7 @@ class AgentRunnerTests(unittest.TestCase):
         report_path = PROJECT_ROOT / "outputs" / "run_20260423_demo" / "final_report.md"
         figures_dir = report_path.parent / "figures" / "review_round_2"
         figures_dir.mkdir(parents=True, exist_ok=True)
+        self.addCleanup(lambda: shutil.rmtree(report_path.parent, ignore_errors=True))
         figure_path = figures_dir / "scatter.png"
         figure_path.write_text("fake", encoding="utf-8")
         telemetry = ReportTelemetry(

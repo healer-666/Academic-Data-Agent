@@ -34,13 +34,17 @@ function HistoryView({
       <aside className="history-list" aria-label="历史任务">
         <h2>历史任务</h2>
         <div className="run-list">
-          {runs.length ? runs.map((run) => (
-            <button type="button" className={run.runId === selectedRunId ? "active" : ""} key={run.runId} onClick={() => setSelectedRunId(run.runId)}>
-              <strong>{run.runId}</strong>
-              <span>{run.domain || "数据分析"}</span>
-              <small>{run.timestamp} · {compactStatus(run.reviewStatus)}</small>
-            </button>
-          )) : <p>还没有历史任务。</p>}
+          {runs.length ? runs.map((run) => {
+            const domain = run.domain && run.domain !== "unknown" ? run.domain : "领域待识别";
+            const timestamp = run.timestamp && run.timestamp !== run.runId ? run.timestamp : "";
+            return (
+              <button type="button" className={run.runId === selectedRunId ? "active" : ""} key={run.runId} onClick={() => setSelectedRunId(run.runId)}>
+                <strong>{run.runId}</strong>
+                <span>{domain}</span>
+                <small>{[timestamp, compactStatus(run.reviewStatus)].filter(Boolean).join(" · ")}</small>
+              </button>
+            );
+          }) : <p>还没有历史任务。</p>}
         </div>
       </aside>
 

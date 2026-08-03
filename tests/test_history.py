@@ -17,6 +17,11 @@ from data_analysis_agent.web.history import find_run_history, scan_run_history
 
 
 class HistoryTests(unittest.TestCase):
+    VALID_PNG = bytes.fromhex(
+        "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+        "0000000d49444154789c6360000000020001e221bc330000000049454e44ae426082"
+    )
+
     def _workspace_case_dir(self) -> Path:
         base_dir = PROJECT_ROOT / "tool-output" / "test-temp"
         base_dir.mkdir(parents=True, exist_ok=True)
@@ -37,7 +42,7 @@ class HistoryTests(unittest.TestCase):
         (run_dir / "data").mkdir(parents=True, exist_ok=True)
         (run_dir / "figures" / "review_round_1").mkdir(parents=True, exist_ok=True)
         (run_dir / "data" / "cleaned_data.csv").write_text("a,b\n1,2\n", encoding="utf-8")
-        (run_dir / "figures" / "review_round_1" / "chart.png").write_text("fake-image", encoding="utf-8")
+        (run_dir / "figures" / "review_round_1" / "chart.png").write_bytes(self.VALID_PNG)
         (run_dir / "logs" / "document_ingestion.json").write_text("{}", encoding="utf-8")
         (run_dir / "final_report.md").write_text(
             "# Report\n\n![chart](outputs/{}/figures/review_round_1/chart.png)".format(name),
@@ -116,6 +121,28 @@ class HistoryTests(unittest.TestCase):
         entries = scan_run_history(case_dir)
 
         self.assertEqual(entries, [])
+
+    def test_scan_run_history_ignores_newer_shell_directory_before_applying_limit(self):
+        case_dir = self._workspace_case_dir()
+        valid_run = self._create_run_dir(case_dir, "run_20260316_120000")
+        shell_run = case_dir / "run_demo"
+        (shell_run / "figures").mkdir(parents=True)
+        (shell_run / "figures" / "chart.png").write_bytes(b"fake")
+        os.utime(shell_run, (valid_run.stat().st_atime, valid_run.stat().st_mtime + 20))
+
+        entries = scan_run_history(case_dir, limit=1)
+
+        self.assertEqual([entry.run_dir.name for entry in entries], [valid_run.name])
+        self.assertIsNone(find_run_history(shell_run.name, case_dir))
+
+    def test_scan_run_history_omits_corrupt_image_artifacts(self):
+        case_dir = self._workspace_case_dir()
+        run_dir = self._create_run_dir(case_dir, "run_20260316_123000")
+        (run_dir / "figures" / "review_round_1" / "chart.png").write_bytes(b"fake")
+
+        entries = scan_run_history(case_dir)
+
+        self.assertEqual(entries[0].figure_paths, ())
 
     def test_scan_run_history_reads_report_figures_and_table_metadata(self):
         case_dir = self._workspace_case_dir()
