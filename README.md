@@ -2,6 +2,8 @@
 
 # 🔬 Academic-Data-Agent
 
+[English](./README.md) | [简体中文](./README_zh-CN.md)
+
 **Upload data, ask a question, and receive a report whose results can be checked.**
 
 <p>
