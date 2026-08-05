@@ -1,6 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Download, ExternalLink, FileText, Globe2, Loader2, ShieldAlert } from "lucide-react";
-import { toAbsoluteFileUrl } from "../api";
+import { useMemo, useState } from "react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  Database,
+  Download,
+  ExternalLink,
+  FileCheck2,
+  FileText,
+  Globe2,
+  Loader2,
+  SearchCheck,
+  ShieldAlert,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
+import { historyReportPdfUrl, toAbsoluteFileUrl } from "../api";
 import InteractiveReportView from "../components/InteractiveReportView";
 import { EmptyState } from "../components/WorkspacePrimitives";
 import { compactStatus, formatBytes, formatDuration } from "../utils/formatters";
@@ -10,6 +24,14 @@ const RESULT_TABS = [
   { id: "activity", label: "运行过程" },
   { id: "audit", label: "可信度检查" },
   { id: "files", label: "文件" },
+];
+
+const PHASE_DEFINITIONS = [
+  { id: "prepare", label: "读取资料", description: "识别文件与数据结构", icon: Database },
+  { id: "understand", label: "理解数据", description: "检查字段、质量与分析目标", icon: SearchCheck },
+  { id: "analyze", label: "执行分析", description: "运行数据处理、统计与建模", icon: Sparkles },
+  { id: "verify", label: "验证结果", description: "复核结论、图表与分析过程", icon: ShieldCheck },
+  { id: "deliver", label: "生成报告", description: "整理结论、图表与交付文件", icon: FileCheck2 },
 ];
 
 function ReportContext({ result }) {
@@ -28,24 +50,99 @@ function ReportContext({ result }) {
   );
 }
 
-function ResultsView({ status, logs, result, outputDir }) {
-  const [activeTab, setActiveTab] = useState("report");
-  const logEndRef = useRef(null);
+function includesAny(text, terms) {
+  return terms.some((term) => text.includes(term));
+}
 
-  useEffect(() => {
-    if (activeTab === "activity") logEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [activeTab, logs]);
+function buildActivityPhases(status, logs, result) {
+  const logText = logs.join(" ").toLowerCase();
+  const isFinished = Boolean(result) || status.state === "completed";
+  const markers = [
+    true,
+    includesAny(logText, ["context", "数据上下文", "输入数据", "data_context"]),
+    includesAny(logText, ["analy", "python", "执行分析", "统计", "tool_"]),
+    includesAny(logText, ["valid", "review", "audit", "审阅", "检查"]),
+    includesAny(logText, ["report", "final", "报告", "分析完成"]),
+  ];
+  let activeIndex = Math.max(0, markers.lastIndexOf(true));
+  if (isFinished) activeIndex = PHASE_DEFINITIONS.length - 1;
 
-  const auditItems = useMemo(() => result ? [
-    { label: "文本审阅", detail: result.review?.critique || "没有返回审阅摘要", passed: Boolean(result.review?.critique) },
-    { label: "图表检查", detail: result.review?.visionSummary || "没有返回图表检查摘要", passed: Boolean(result.review?.visionSummary) },
+  const traceCount = Array.isArray(result?.trace) ? result.trace.length : 0;
+  const figureCount = result?.figures?.length || 0;
+  const downloadCount = result?.downloads?.length || 0;
+  const completedDescriptions = [
+    "输入资料已保存并完成格式识别",
+    result?.dataContextSummary || "数据结构与分析目标已确认",
+    traceCount ? `已完成 ${traceCount} 个分析步骤` : "数据处理与统计分析已完成",
+    "已完成报告、图表与执行过程检查",
+    `报告已生成${figureCount ? `，包含 ${figureCount} 张图表` : ""}${downloadCount ? `、${downloadCount} 个文件` : ""}`,
+  ];
+
+  return PHASE_DEFINITIONS.map((phase, index) => ({
+    ...phase,
+    state: isFinished || index < activeIndex ? "done" : index === activeIndex ? "active" : "waiting",
+    description: isFinished || index < activeIndex ? completedDescriptions[index] : phase.description,
+  }));
+}
+
+function buildAuditItems(result) {
+  if (!result) return [];
+  const reviewStatus = String(result.reviewStatus || "").toLowerCase();
+  const hasTextReview = Boolean(result.review?.critique) || includesAny(reviewStatus, ["approved", "passed", "complete"]);
+  const reviewAtLimit = reviewStatus === "max_reviews_reached";
+  const hasVisionReview = Boolean(result.review?.visionSummary);
+  const workflowPassed = Boolean(result.executionAudit?.passed || result.workflowComplete);
+
+  return [
     {
-      label: "阶段审计",
-      detail: result.executionAudit?.findings?.join("；") || compactStatus(result.executionAudit?.status),
-      passed: Boolean(result.executionAudit?.passed),
+      label: "报告内容审阅",
+      description: hasTextReview
+        ? "已检查报告结构、统计表述和结论一致性。"
+        : reviewAtLimit
+          ? "已完成预设轮次的报告修订，建议重点查看最终结论和局限性。"
+          : "本次结果没有保存独立的文字审阅记录，建议人工复核关键结论。",
+      state: hasTextReview ? "passed" : "notice",
     },
-  ] : [], [result]);
-  const passedAuditCount = auditItems.filter((item) => item.passed).length;
+    {
+      label: "图表可读性",
+      description: hasVisionReview
+        ? "已检查图表清晰度以及图文对应关系。"
+        : "本次未启用独立的图表视觉复核；图表来自已完成的分析步骤。",
+      state: hasVisionReview ? "passed" : "notice",
+    },
+    {
+      label: "分析流程完整性",
+      description: workflowPassed
+        ? "数据处理、分析执行和报告生成流程均已正常结束。"
+        : "未发现明确的流程失败，但当前记录缺少完整的阶段审计摘要。",
+      state: workflowPassed ? "passed" : "notice",
+    },
+  ];
+}
+
+function localizeTraceStep(item, index) {
+  const raw = `${item?.decision || ""} ${item?.summary || ""}`.toLowerCase();
+  let action = "完成数据处理与结果计算";
+  if (includesAny(raw, ["load the raw", "raw data", "读取原始"])) action = "读取并检查原始数据";
+  else if (includesAny(raw, ["clean", "清洗"])) action = "清洗数据并准备分析数据集";
+  else if (includesAny(raw, ["hypothesis", "statistical", "chi-square", "kruskal", "检验"])) action = "完成统计检验并整理关键数值";
+  else if (includesAny(raw, ["figure", "plot", "图表"])) action = "生成并检查分析图表";
+  else if (includesAny(raw, ["revision", "review", "修订"])) action = "根据审阅意见补充分析";
+  const status = String(item?.toolStatus || item?.status || "success").toLowerCase();
+  return {
+    id: `${item?.stepIndex ?? index}-${item?.toolName || "step"}`,
+    index: item?.stepIndex ?? index + 1,
+    action,
+    status: includesAny(status, ["success", "passed", "complete"]) ? "已完成" : status === "failed" ? "失败" : "已记录",
+  };
+}
+
+function ResultsView({ status, logs, result, outputDir, onTraceEvidence }) {
+  const [activeTab, setActiveTab] = useState("report");
+  const phases = useMemo(() => buildActivityPhases(status, logs, result), [status, logs, result]);
+  const auditItems = useMemo(() => buildAuditItems(result), [result]);
+  const passedAuditCount = auditItems.filter((item) => item.state === "passed").length;
+  const traceSteps = Array.isArray(result?.trace) ? result.trace.map(localizeTraceStep) : [];
 
   return (
     <section className="results-page">
@@ -55,6 +152,10 @@ function ResultsView({ status, logs, result, outputDir }) {
           <span>{result.detectedDomain || "未识别领域"}</span>
           <span>{formatDuration(result.totalDurationMs)}</span>
           <span>{result.runId}</span>
+          <span className="run-summary-actions">
+            {result.report?.url && <a href={toAbsoluteFileUrl(result.report.url)} target="_blank" rel="noreferrer"><FileText size={14} />导出 Markdown</a>}
+            <a href={historyReportPdfUrl(result.runId, outputDir)} target="_blank" rel="noreferrer"><Download size={14} />导出 PDF</a>
+          </span>
         </div>
       )}
 
@@ -77,7 +178,16 @@ function ResultsView({ status, logs, result, outputDir }) {
                 outputDir={outputDir}
                 reportMarkdown={result.reportMarkdown}
                 figures={result.figures || []}
+                lineage={result.lineage}
+                tracePayload={result.tracePayload}
+                artifacts={{
+                  sourceData: result.sourceData,
+                  cleanedData: result.cleanedData,
+                  report: result.report,
+                  figures: result.figures || [],
+                }}
                 available={result.interactiveReportAvailable}
+                onTraceEvidence={onTraceEvidence}
               />
             </>
           ) : (
@@ -87,53 +197,75 @@ function ResultsView({ status, logs, result, outputDir }) {
       )}
 
       {activeTab === "activity" && (
-        <div className="activity-document">
-          <header>
-            <h2>{status.message || "等待任务开始"}</h2>
-            {status.state === "starting" || status.state === "running" ? <Loader2 className="spin" size={18} /> : null}
+        <div className="activity-document activity-overview">
+          <header className="activity-overview-header">
+            <div>
+              <span className="kicker">分析进度</span>
+              <h2>{result ? "分析已完成" : status.message || "等待任务开始"}</h2>
+              <p>这里只展示关键阶段；技术事件和调试信息已收起。</p>
+            </div>
+            {status.state === "starting" || status.state === "running" ? <Loader2 className="spin" size={20} /> : <CheckCircle2 size={22} />}
           </header>
-          <ol className="activity-timeline">
-            {logs.length ? logs.map((line, index) => (
-              <li key={`${index}-${line}`}><span>{index + 1}</span><p>{line}</p></li>
-            )) : <li className="empty"><span>·</span><p>运行步骤会依次显示在这里。</p></li>}
-            <span ref={logEndRef} />
-          </ol>
+
+          <div className="activity-phase-grid">
+            {phases.map((phase, index) => {
+              const Icon = phase.icon;
+              return (
+                <article className={`activity-phase ${phase.state}`} key={phase.id}>
+                  <div className="activity-phase-icon">{phase.state === "done" ? <CheckCircle2 size={18} /> : <Icon size={18} />}</div>
+                  <span>{index + 1}</span>
+                  <div><strong>{phase.label}</strong><p>{phase.description}</p></div>
+                </article>
+              );
+            })}
+          </div>
+
           {result && (
-            <details className="run-details">
-              <summary>查看运行详情</summary>
-              <dl>
-                <div><dt>输出深度</dt><dd>{compactStatus(result.qualityMode)}</dd></div>
-                <div><dt>知识检索</dt><dd>{compactStatus(result.ragStatus)} · 命中 {result.ragMatchCount || 0}</dd></div>
-                <div><dt>经验写回</dt><dd>{compactStatus(result.memoryWritebackStatus)}</dd></div>
-                <div><dt>工作流</dt><dd>{result.workflowComplete ? "已完成" : "有提醒"}</dd></div>
-              </dl>
-            </details>
+            <div className="run-facts">
+              <div><span>分析模式</span><strong>{compactStatus(result.qualityMode) || "标准"}</strong></div>
+              <div><span>历史经验</span><strong>{result.ragMatchCount ? `匹配 ${result.ragMatchCount} 条` : "本次未使用"}</strong></div>
+              <div><span>工作流</span><strong>{result.workflowComplete ? "完整结束" : "已生成结果"}</strong></div>
+            </div>
           )}
+
+          <details className="technical-log-details">
+            <summary><span>技术日志</span><em>{logs.length} 条，仅供排查问题</em><ChevronDown size={16} /></summary>
+            <div className="technical-log-body">
+              {logs.length ? logs.map((line, index) => <p key={`${index}-${line}`}><span>{index + 1}</span>{line}</p>) : <p>尚无技术日志。</p>}
+            </div>
+          </details>
         </div>
       )}
 
       {activeTab === "audit" && (
-        <div className="audit-document">
+        <div className="audit-document audit-overview">
           {result ? (
             <>
               <header className={passedAuditCount === auditItems.length ? "passed" : "warning"}>
                 {passedAuditCount === auditItems.length ? <CheckCircle2 size={22} /> : <ShieldAlert size={22} />}
-                <div><h2>已通过 {passedAuditCount} 项检查</h2><p>{auditItems.length - passedAuditCount > 0 ? `另有 ${auditItems.length - passedAuditCount} 项需要留意。` : "没有发现需要处理的问题。"}</p></div>
+                <div>
+                  <span className="kicker">可信度检查</span>
+                  <h2>{passedAuditCount === auditItems.length ? "检查全部通过" : "结果可用，但有事项需要留意"}</h2>
+                  <p>{passedAuditCount} 项通过，{auditItems.length - passedAuditCount} 项为使用提醒，不代表分析失败。</p>
+                </div>
               </header>
-              <div className="audit-list">
+              <div className="audit-card-grid">
                 {auditItems.map((item) => (
-                  <details key={item.label}>
-                    <summary><span className={item.passed ? "passed" : "warning"} />{item.label}<em>{item.passed ? "通过" : "提示"}</em></summary>
-                    <p>{item.detail}</p>
-                  </details>
+                  <article className={item.state} key={item.label}>
+                    <span>{item.state === "passed" ? <CheckCircle2 size={18} /> : <ShieldAlert size={18} />}</span>
+                    <div><strong>{item.label}</strong><p>{item.description}</p></div>
+                    <em>{item.state === "passed" ? "通过" : "提醒"}</em>
+                  </article>
                 ))}
               </div>
-              {result.trace?.length > 0 && (
-                <details className="trace-details">
-                  <summary>查看详细执行轨迹</summary>
-                  <div className="trace-table-wrap"><table><thead><tr><th>步骤</th><th>工具</th><th>状态</th><th>决策</th><th>摘要</th></tr></thead><tbody>
-                    {result.trace.map((item) => <tr key={`${item.stepIndex}-${item.toolName}`}><td>{item.stepIndex}</td><td>{item.toolName}</td><td>{item.toolStatus}</td><td>{item.decision}</td><td>{item.summary}</td></tr>)}
-                  </tbody></table></div>
+              {traceSteps.length > 0 && (
+                <details className="trace-details localized-trace-details">
+                  <summary>查看分析步骤摘要</summary>
+                  <div className="localized-trace-list">
+                    {traceSteps.map((item) => (
+                      <div key={item.id}><span>{item.index}</span><strong>{item.action}</strong><em>{item.status}</em></div>
+                    ))}
+                  </div>
                 </details>
               )}
             </>

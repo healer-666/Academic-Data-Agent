@@ -1,7 +1,8 @@
 import { toAbsoluteFileUrl } from "../api";
+import { stripResultEvidenceComments } from "../utils/reportEvidence";
 
 function InlineMarkdown({ text }) {
-  const source = String(text ?? "");
+  const source = stripResultEvidenceComments(text);
   const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g;
   const parts = source.split(pattern).filter((part) => part !== "");
   return (
@@ -27,10 +28,11 @@ function InlineMarkdown({ text }) {
   );
 }
 
-function MarkdownView({ content }) {
+function MarkdownView({ content, renderImage, renderListItem }) {
   const lines = String(content || "").replace(/\r\n/g, "\n").split("\n");
   const blocks = [];
   let index = 0;
+  let imageIndex = 0;
 
   while (index < lines.length) {
     const line = lines[index];
@@ -56,14 +58,16 @@ function MarkdownView({ content }) {
       continue;
     }
 
-    const imageMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+    const imageMatch = line.trim().match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
     if (imageMatch) {
-      blocks.push(
+      const image = { alt: imageMatch[1] || "图表", url: imageMatch[2], index: imageIndex };
+      blocks.push(renderImage ? renderImage(image) : (
         <figure key={`image-${blocks.length}`} className="markdown-figure">
-          <img src={toAbsoluteFileUrl(imageMatch[2])} alt={imageMatch[1] || "图表"} />
+          <img src={toAbsoluteFileUrl(image.url)} alt={image.alt} />
           {imageMatch[1] && <figcaption>{imageMatch[1]}</figcaption>}
-        </figure>,
-      );
+        </figure>
+      ));
+      imageIndex += 1;
       index += 1;
       continue;
     }
@@ -122,9 +126,11 @@ function MarkdownView({ content }) {
       const List = ordered ? "ol" : "ul";
       blocks.push(
         <List key={`list-${blocks.length}`}>
-          {items.map((item, itemIndex) => (
-            <li key={itemIndex}><InlineMarkdown text={item} /></li>
-          ))}
+          {items.map((item, itemIndex) => {
+            const defaultContent = <InlineMarkdown text={item} />;
+            const customContent = renderListItem?.({ text: item, index: itemIndex, ordered, defaultContent });
+            return <li className={customContent ? "interactive-markdown-list-item" : ""} key={itemIndex}>{customContent || defaultContent}</li>;
+          })}
         </List>,
       );
       continue;
@@ -136,6 +142,7 @@ function MarkdownView({ content }) {
       lines[index].trim() &&
       !/^```/.test(lines[index].trim()) &&
       !/^(#{1,4})\s+/.test(lines[index]) &&
+      !/^!\[[^\]]*\]\([^)]+\)$/.test(lines[index].trim()) &&
       !/^\s*(?:[-*+]\s+|\d+[.)]\s+)/.test(lines[index])
     ) {
       paragraph.push(lines[index]);

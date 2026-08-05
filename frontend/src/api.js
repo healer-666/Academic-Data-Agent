@@ -129,6 +129,22 @@ export async function fetchInteractiveReport(runId, outputDir = "outputs") {
   return readJson(response);
 }
 
+export async function fetchHistoryDataPreview(runId, kind, outputDir = "outputs", limit = 20) {
+  const response = await fetch(
+    apiUrl(`/api/history/runs/${encodeURIComponent(runId)}/data-preview?kind=${encodeURIComponent(kind)}&output_dir=${encodeURIComponent(outputDir)}&limit=${encodeURIComponent(limit)}`),
+    { headers: { Accept: "application/json" }, cache: "no-store" },
+  );
+  const payload = await readJson(response);
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.message || `数据预览加载失败：${response.status}`);
+  }
+  return payload;
+}
+
+export function historyReportPdfUrl(runId, outputDir = "outputs") {
+  return apiUrl(`/api/history/runs/${encodeURIComponent(runId)}/report.pdf?output_dir=${encodeURIComponent(outputDir)}`);
+}
+
 export async function askHistoryQuestion({ question, selectedRunIds, mode, outputDir, envFile }) {
   const response = await fetch(apiUrl("/api/history/question"), {
     method: "POST",

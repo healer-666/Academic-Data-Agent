@@ -335,3 +335,7 @@ class AnalysisRunResult:
     report_contract_issue_types: tuple[str, ...] = ()
     lineage_json_path: Path | None = None
     lineage_mermaid_path: Path | None = None
+    interactive_report_manifest_path: Path | None = None
+    interactive_report_snapshot_path: Path | None = None
+    interactive_report_source_map_path: Path | None = None
+    interactive_report_summary: dict[str, object] = field(default_factory=dict)

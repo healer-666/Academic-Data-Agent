@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, KeyRound, Loader2, PlugZap, RotateCcw, Save, ShieldCheck } from "lucide-react";
 import {
   clearModelSettings,
-  fetchModelSettings,
   saveModelSettings,
   testModelConnection,
 } from "../api";
@@ -20,31 +19,21 @@ function statusLabel(status) {
   return "尚未配置";
 }
 
-export default function ModelSettingsView() {
+export default function ModelSettingsView({ status, loading, loadError, onRefresh, onStatusChange }) {
   const [form, setForm] = useState(EMPTY_FORM);
-  const [status, setStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [action, setAction] = useState("");
   const [message, setMessage] = useState(null);
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
   useEffect(() => {
-    let active = true;
-    fetchModelSettings()
-      .then((payload) => {
-        if (!active) return;
-        setStatus(payload);
-        setForm((current) => ({
-          ...current,
-          modelId: current.modelId || payload.modelId || "",
-          baseUrl: current.baseUrl || payload.baseUrl || "",
-        }));
-      })
-      .catch((error) => active && setMessage({ type: "error", text: error.message }))
-      .finally(() => active && setLoading(false));
-    return () => { active = false; };
-  }, []);
+    if (!status) return;
+    setForm((current) => ({
+      ...current,
+      modelId: current.modelId || status.modelId || "",
+      baseUrl: current.baseUrl || status.baseUrl || "",
+    }));
+  }, [status]);
 
   const payloadFromForm = () => ({
     modelId: form.modelId.trim(),
@@ -59,7 +48,7 @@ export default function ModelSettingsView() {
     setMessage(null);
     try {
       const payload = await saveModelSettings(payloadFromForm());
-      setStatus(payload);
+      onStatusChange(payload);
       setForm((current) => ({ ...current, apiKey: "" }));
       setMessage({ type: "success", text: "已保存到当前服务会话；密钥不会写入项目文件。" });
     } catch (error) {
@@ -77,12 +66,12 @@ export default function ModelSettingsView() {
       const payload = await testModelConnection(useSavedSettings ? null : payloadFromForm());
       setMessage({ type: "success", text: payload.message });
       if (useSavedSettings) {
-        setStatus(await fetchModelSettings());
+        await onRefresh();
       }
     } catch (error) {
       setMessage({ type: "error", text: error.message });
       if (!form.apiKey && status?.source === "web") {
-        fetchModelSettings().then(setStatus).catch(() => {});
+        onRefresh();
       }
     } finally {
       setAction("");
@@ -94,7 +83,7 @@ export default function ModelSettingsView() {
     setMessage(null);
     try {
       const payload = await clearModelSettings();
-      setStatus(payload);
+      onStatusChange(payload);
       setForm({
         ...EMPTY_FORM,
         modelId: payload.modelId || "",
@@ -129,6 +118,8 @@ export default function ModelSettingsView() {
           {status?.connectionStatus === "connected" && <span className="status-pill success">连接正常</span>}
           {status?.connectionStatus === "failed" && <span className="status-pill error">连接失败</span>}
         </section>
+
+        {loadError && !message && <div className="settings-message error" role="alert"><ShieldCheck size={17} /><span>{loadError}</span></div>}
 
         <form className="model-settings-form" onSubmit={handleSave}>
           <div className="settings-section-heading"><h3>接口配置</h3><p>支持 OpenAI 兼容接口及项目已有的 Anthropic Messages 兼容地址。</p></div>

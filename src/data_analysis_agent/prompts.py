@@ -2,10 +2,35 @@
 
 from __future__ import annotations
 
+import re
+
 from .symbolic_rules import format_symbolic_rule_catalog_for_prompt, resolve_symbolic_profile
 
 
 DEFAULT_QUERY = "请分析以下数据集："
+
+
+def infer_report_language(user_query: str) -> str:
+    """Infer the report's primary language from the user's analysis request."""
+
+    chinese_character_count = len(re.findall(r"[\u3400-\u4dbf\u4e00-\u9fff]", user_query or ""))
+    latin_letter_count = len(re.findall(r"[A-Za-z]", user_query or ""))
+    return "zh-CN" if chinese_character_count >= 2 and chinese_character_count * 2 >= latin_letter_count else "en"
+
+
+def build_report_language_instruction(user_query: str) -> str:
+    language = infer_report_language(user_query)
+    if language == "zh-CN":
+        return """Report language contract / 报告语言约定:
+- The user's request is primarily Chinese. Write the final report's title, headings, narrative, figure captions, table labels, interpretations, limitations, and conclusion in Simplified Chinese.
+- Use these Chinese section headings in order: 数据概览、数据清洗说明、方法说明、主要统计结果、图表解释、局限性、结论.
+- Do not use bilingual slash headings such as “Conclusion / 结论”, and do not repeat the same paragraph in English and Chinese.
+- Keep only necessary English technical abbreviations, established method names, variable names, code, formulas, and citation titles when translating them would reduce precision."""
+    return """Report language contract:
+- The user's request is primarily English. Write the final report's title, headings, narrative, figure captions, table labels, interpretations, limitations, and conclusion in English.
+- Use these English section headings in order: Data Overview, Data Cleaning Notes, Methods, Core Statistical Results, Figure Interpretation, Limitations, Conclusion.
+- Do not use bilingual slash headings and do not repeat the same paragraph in multiple languages.
+- Preserve non-English proper nouns, source titles, variable names, code, formulas, and citation labels when needed for precision."""
 
 
 def build_system_prompt(
@@ -22,10 +47,12 @@ def build_system_prompt(
     fast_path_enabled: bool = False,
     pdf_small_table_mode: bool = False,
     symbolic_profile: str = "full",
+    user_query: str = "",
 ) -> str:
     """Return the system prompt for the custom JSON-driven analysis runner."""
 
     tools_block = tool_descriptions or "- PythonInterpreterTool: Execute Python code and print analysis results."
+    report_language_block = build_report_language_instruction(user_query)
     resolved_symbolic_profile = resolve_symbolic_profile(symbolic_profile)
     if resolved_symbolic_profile == "none":
         return _build_minimal_system_prompt(
@@ -37,6 +64,7 @@ def build_system_prompt(
             tools_block=tools_block,
             search_enabled=search_enabled,
             latency_mode=latency_mode,
+            report_language_block=report_language_block,
         )
 
     search_policy_block = (
@@ -76,6 +104,7 @@ You are a cross-domain scientific analysis agent. You can analyze structured dat
 Your job is to analyze the dataset described in the user-provided data_context. The data_context only contains file paths, schema information, shape, sampled rows, and this run's artifact directory information. It does not contain the full dataset. You must use the available tools to load the local file, inspect the real data, infer the most likely domain, clean it, run statistical analysis, and save charts locally.
 {literature_context_block}
 {pdf_small_table_block}
+{report_language_block}
 
 Available tools:
 {tools_block}
@@ -120,7 +149,7 @@ Academic Guardrails / 统计学汇报规范:
 - If your observations do not contain effect sizes, confidence intervals, or the required multiple-comparison correction details, the analysis is not ready to finish.
 - If you generate a figure, the final report must explain what that figure shows and why it matters. Do not finish with bare image references and no textual interpretation.
 - Use a stable report structure that the reviewer can verify quickly.
-- The final report must contain these sections in order, using either Chinese or English headings that are easy to recognize: Data Overview / 数据概览, Data Cleaning Notes / 数据清洗说明, Methods / 方法说明, Core Statistical Results / 主要统计结果, Figure Interpretation / 图表解释, Limitations / 局限性, Conclusion / 结论.
+- The final report must contain all required sections in the exact language and heading style specified by the Report language contract above.
 - The Figure Interpretation section must include 1-3 direct sentences for every cited figure. Do not place a figure reference in the report without an adjacent interpretation sentence.
 - Figure interpretation must describe both the statistical takeaway and the visual feature itself.
 - For a boxplot, explicitly mention what the median, interquartile spread, overlap or separation between groups, and visible outliers imply.
@@ -185,7 +214,8 @@ Execution rules:
 23. Neither success memory nor failure memory is direct evidence for the current dataset. If memory conflicts with the current data or retrieved evidence, follow the current data and current evidence.
 24. Failure memory is for guardrails only. Do not use it as domain knowledge, factual support, or a substitute for computation.
 25. Do not cite success memory or failure memory as if they were retrieved evidence. Inline citations may only use labels from <Retrieved_Evidence_Register>.
-26. Before action "finish", run a self-check against both the stage-execution contract and the Report_Contract_Checklist.
+26. For every quantitative finding or conclusion sentence, append a hidden Markdown HTML comment naming the successful Python step that computed it, exactly like `<!-- result-evidence: step_3 -->`. Use the real step number, keep the comment on the same line, and never point to a failed or non-computational step. This comment is internal provenance metadata and must not be explained or translated in the visible report.
+27. Before action "finish", run a self-check against both the stage-execution contract and the Report_Contract_Checklist.
 
 Official plotting protocol / 官方绘图协议:
 - The only standard save API is save_figure(output_path).
@@ -274,6 +304,7 @@ def _build_minimal_system_prompt(
     tools_block: str,
     search_enabled: bool,
     latency_mode: str,
+    report_language_block: str,
 ) -> str:
     search_policy_block = (
         "Online domain search is available only if TavilySearchTool appears in the available tools list."
@@ -286,6 +317,8 @@ This run uses symbolic_profile = none. Keep the basic tool protocol and output f
 
 Available tools:
 {tools_block}
+
+{report_language_block}
 
 Execution rules:
 1. Use PythonInterpreterTool when you need to inspect local files, calculate statistics, or generate plots.

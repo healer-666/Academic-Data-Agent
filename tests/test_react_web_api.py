@@ -38,6 +38,8 @@ class ReactWebApiTests(unittest.TestCase):
         (run_dir / "logs").mkdir(parents=True, exist_ok=True)
         (run_dir / "data").mkdir(parents=True, exist_ok=True)
         (run_dir / "figures").mkdir(parents=True, exist_ok=True)
+        source_path = run_dir / "data" / "source.csv"
+        source_path.write_text("a,b\n1,2\n3,4\n", encoding="utf-8")
         (run_dir / "final_report.md").write_text("# Demo\n\nResult.", encoding="utf-8")
         (run_dir / "logs" / "agent_trace.json").write_text(
             json.dumps(
@@ -47,6 +49,7 @@ class ReactWebApiTests(unittest.TestCase):
                         "quality_mode": "standard",
                         "latency_mode": "auto",
                         "input_kind": "tabular",
+                        "data_path": source_path.as_posix(),
                     },
                     "telemetry": {"domain": "demo-domain"},
                     "artifact_validation": {"workflow_complete": True, "stage_contract_passed": True},
@@ -366,17 +369,45 @@ class ReactWebApiTests(unittest.TestCase):
         denied_response = self.client.get("/api/files", params={"path": outside.as_posix()})
         self.assertEqual(denied_response.status_code, 403)
 
-    def test_interactive_report_endpoint_and_legacy_fallback(self):
+    def test_history_report_can_be_exported_as_pdf(self):
         run_dir = self._make_outputs_run()
-
-        legacy_response = self.client.get(
-            f"/api/history/runs/{run_dir.name}/interactive-report",
+        response = self.client.get(
+            f"/api/history/runs/{run_dir.name}/report.pdf",
             params={"output_dir": "outputs"},
         )
-        self.assertEqual(legacy_response.status_code, 200)
-        self.assertFalse(legacy_response.json()["available"])
 
-        self._write_interactive_report(run_dir)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "application/pdf")
+        self.assertTrue(response.content.startswith(b"%PDF"))
+        self.assertGreater(len(response.content), 1000)
+        self.assertTrue((run_dir / "final_report.pdf").is_file())
+
+    def test_history_data_preview_returns_rows_and_file_location(self):
+        run_dir = self._make_outputs_run()
+        source_response = self.client.get(
+            f"/api/history/runs/{run_dir.name}/data-preview",
+            params={"output_dir": "outputs", "kind": "source", "limit": 1},
+        )
+        cleaned_response = self.client.get(
+            f"/api/history/runs/{run_dir.name}/data-preview",
+            params={"output_dir": "outputs", "kind": "cleaned", "limit": 20},
+        )
+
+        self.assertEqual(source_response.status_code, 200)
+        source = source_response.json()
+        self.assertEqual(source["columns"], ["a", "b"])
+        self.assertEqual(source["rows"], [{"a": 1, "b": 2}])
+        self.assertEqual(source["rowCount"], 2)
+        self.assertTrue(source["truncated"])
+        self.assertTrue(source["path"].endswith("source.csv"))
+        self.assertIn("url", source["download"])
+
+        self.assertEqual(cleaned_response.status_code, 200)
+        self.assertEqual(cleaned_response.json()["rows"], [{"a": 1, "b": 2}])
+
+    def test_interactive_report_endpoint_backfills_result_level_evidence(self):
+        run_dir = self._make_outputs_run()
+
         response = self.client.get(
             f"/api/history/runs/{run_dir.name}/interactive-report",
             params={"output_dir": "outputs"},
@@ -385,9 +416,15 @@ class ReactWebApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(payload["available"])
+        self.assertGreaterEqual(payload["manifest"]["generatorVersion"], 9)
         self.assertEqual(payload["manifest"]["summary"]["figureCount"], 1)
         self.assertIn("url", payload["manifest"]["figures"][0])
-        self.assertEqual(payload["snapshot"]["datasets"]["dataset_figure_chart"]["rows"][0]["a"], 1)
+        figure = payload["manifest"]["figures"][0]
+        dataset = payload["snapshot"]["datasets"][figure["datasetId"]]
+        self.assertEqual(dataset["rows"][0]["a"], 1)
+        self.assertEqual(dataset["rows"][0]["__source_row__"], 2)
+        self.assertEqual(dataset["locator"]["sourceRows"], "2")
+        self.assertEqual(dataset["locator"]["cleanedRows"], "1")
 
     def test_analysis_run_streams_result_with_mocked_runner(self):
         output_dir = PROJECT_ROOT / "outputs"

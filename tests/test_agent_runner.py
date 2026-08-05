@@ -861,6 +861,15 @@ class AgentRunnerTests(unittest.TestCase):
         self.assertTrue(result.execution_audit_passed)
         self.assertFalse(result.report_contract_passed)
         self.assertIn("posthoc only", result.review_critique)
+        self.assertIsNotNone(result.interactive_report_manifest_path)
+        self.assertTrue(result.interactive_report_manifest_path.is_file())
+        self.assertTrue(result.interactive_report_snapshot_path.is_file())
+        self.assertTrue(result.interactive_report_source_map_path.is_file())
+        self.assertEqual(result.interactive_report_summary["status"], "generated")
+        trace_payload = json.loads(result.trace_path.read_text(encoding="utf-8"))
+        self.assertEqual(trace_payload["interactive_report"]["status"], "generated")
+        run_summary = json.loads((result.run_dir / "run_summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(run_summary["interactive_report_summary"]["status"], "generated")
 
 
 if __name__ == "__main__":

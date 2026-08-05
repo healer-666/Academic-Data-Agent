@@ -1,12 +1,12 @@
 import { Database, FileText } from "lucide-react";
 import { compactStatus, formatBytes } from "../utils/formatters";
 
-function KnowledgeView({ knowledgeBase }) {
+function KnowledgeView({ knowledgeBase, embedded = false }) {
   const files = knowledgeBase?.recentFiles || [];
   return (
-    <section className="knowledge-page">
+    <section className={`knowledge-page ${embedded ? "embedded-library-section" : ""}`}>
       <header className="page-heading">
-        <div><h1>本地知识库</h1><p>通用分析可引用的本地资料。</p></div>
+        <div>{embedded ? <h2>通用资料</h2> : <h1>本地知识库</h1>}<p>通用分析可引用的本地资料。</p></div>
         <div className="knowledge-summary">
           <span><strong>{knowledgeBase?.indexedFileCount ?? 0}</strong> 个文件</span>
           <span><strong>{knowledgeBase?.chunkCount ?? 0}</strong> 个切片</span>

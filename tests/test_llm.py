@@ -26,6 +26,17 @@ class FakeHelloAgentsLLM:
 
 
 class LLMTests(unittest.TestCase):
+    def test_build_llm_creates_openai_compatible_client(self):
+        llm = build_llm(
+            RuntimeConfig(
+                model_id="qwen3.7-plus",
+                api_key="demo-key",
+                base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            )
+        )
+
+        self.assertIsNotNone(llm._llm)
+
     def test_build_llm_disables_deepseek_flash_thinking(self):
         with patch("data_analysis_agent.llm.HelloAgentsLLM", FakeHelloAgentsLLM):
             llm = build_llm(

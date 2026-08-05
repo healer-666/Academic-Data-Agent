@@ -10,7 +10,7 @@ SRC_PATH = PROJECT_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from data_analysis_agent.prompts import build_observation_prompt, build_reviewer_prompt, build_system_prompt
+from data_analysis_agent.prompts import build_observation_prompt, build_reviewer_prompt, build_system_prompt, infer_report_language
 
 
 class PromptGuardrailTests(unittest.TestCase):
@@ -36,9 +36,9 @@ class PromptGuardrailTests(unittest.TestCase):
         self.assertIn("later Python step", prompt)
         self.assertIn("paired or repeated-measures", prompt)
         self.assertIn("bare image references", prompt)
-        self.assertIn("Data Cleaning Notes /", prompt)
-        self.assertIn("Figure Interpretation /", prompt)
-        self.assertIn("Limitations /", prompt)
+        self.assertIn("Data Cleaning Notes", prompt)
+        self.assertIn("Figure Interpretation", prompt)
+        self.assertIn("Limitations", prompt)
         self.assertIn("For a boxplot", prompt)
         self.assertIn("For a bar chart with error bars", prompt)
         self.assertIn("state the null hypothesis in plain language", prompt)
@@ -47,6 +47,31 @@ class PromptGuardrailTests(unittest.TestCase):
         self.assertIn("cohort membership caused marker differences", prompt)
         self.assertIn("Do not finish immediately after a PythonInterpreterTool error", prompt)
         self.assertIn("95%% CI", prompt)
+        self.assertIn("<!-- result-evidence: step_3 -->", prompt)
+
+    def test_system_prompt_follows_the_user_query_language(self):
+        chinese_prompt = build_system_prompt(
+            run_dir="outputs/run_demo",
+            cleaned_data_path="outputs/run_demo/data/cleaned_data.csv",
+            figures_dir="outputs/run_demo/figures",
+            logs_dir="outputs/run_demo/logs",
+            user_query="请分析这份蔬菜数据，并给出主要结论",
+        )
+        english_prompt = build_system_prompt(
+            run_dir="outputs/run_demo",
+            cleaned_data_path="outputs/run_demo/data/cleaned_data.csv",
+            figures_dir="outputs/run_demo/figures",
+            logs_dir="outputs/run_demo/logs",
+            user_query="Analyze this dataset and summarize the main findings.",
+        )
+
+        self.assertIn("Write the final report's title, headings, narrative", chinese_prompt)
+        self.assertIn("数据概览、数据清洗说明、方法说明", chinese_prompt)
+        self.assertIn("Do not use bilingual slash headings", chinese_prompt)
+        self.assertIn("Data Overview, Data Cleaning Notes, Methods", english_prompt)
+        self.assertIn("primarily English", english_prompt)
+        self.assertEqual(infer_report_language("请分析 ROI 与销售额的关系"), "zh-CN")
+        self.assertEqual(infer_report_language("Analyze 销售额 by region"), "en")
 
     def test_system_prompt_can_include_background_literature_context(self):
         prompt = build_system_prompt(

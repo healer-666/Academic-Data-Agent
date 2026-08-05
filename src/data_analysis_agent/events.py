@@ -54,6 +54,8 @@ class EventType(str, Enum):
     REPORT_PERSISTING = "report_persisting"
     REPORT_SAVED = "report_saved"
     ARTIFACT_VALIDATION_COMPLETED = "artifact_validation_completed"
+    INTERACTIVE_REPORT_GENERATED = "interactive_report_generated"
+    INTERACTIVE_REPORT_FAILED = "interactive_report_failed"
     ANALYSIS_FINISHED = "analysis_finished"
     ANALYSIS_MAX_STEPS = "analysis_max_steps"
     VISION_REVIEW_STARTED = "vision_review_started"

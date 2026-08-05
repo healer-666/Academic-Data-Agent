@@ -1,4 +1,5 @@
-import { ArrowUp, History, Loader2, SlidersHorizontal } from "lucide-react";
+import { ArrowUp, Download, FileText, History, Loader2, SlidersHorizontal } from "lucide-react";
+import { historyReportPdfUrl, toAbsoluteFileUrl } from "../api";
 import InteractiveReportView from "../components/InteractiveReportView";
 import MarkdownView from "../components/MarkdownView";
 import { EmptyState, ViewLoading } from "../components/WorkspacePrimitives";
@@ -20,6 +21,7 @@ function HistoryView({
   qaLoading,
   historyLoading,
   onAskQuestion,
+  showHistoryList = true,
 }) {
   const runs = workspace?.historyRuns || [];
   const handleKeyDown = (event) => {
@@ -30,8 +32,8 @@ function HistoryView({
   };
 
   return (
-    <section className="history-layout">
-      <aside className="history-list" aria-label="历史任务">
+    <section className={`history-layout ${showHistoryList ? "" : "embedded-history"}`}>
+      {showHistoryList && <aside className="history-list" aria-label="历史任务">
         <h2>历史任务</h2>
         <div className="run-list">
           {runs.length ? runs.map((run) => {
@@ -46,7 +48,7 @@ function HistoryView({
             );
           }) : <p>还没有历史任务。</p>}
         </div>
-      </aside>
+      </aside>}
 
       <div className="conversation-workspace">
         <div className="conversation-thread">
@@ -56,12 +58,30 @@ function HistoryView({
             <section className="assistant-message">
               <span className="assistant-mark" aria-hidden="true">A</span>
               <div>
-                <div className="message-meta">{historyDetail.runId}</div>
+                <div className="history-report-toolbar">
+                  <div><span>历史分析报告</span><strong>{historyDetail.runId}</strong></div>
+                  <div className="history-report-exports">
+                    <a href={historyDetail.report?.url ? toAbsoluteFileUrl(historyDetail.report.url) : undefined} target="_blank" rel="noreferrer" className={historyDetail.report?.url ? "" : "disabled"}>
+                      <FileText size={15} />导出 Markdown
+                    </a>
+                    <a href={historyReportPdfUrl(historyDetail.runId, outputDir)} target="_blank" rel="noreferrer">
+                      <Download size={15} />导出 PDF
+                    </a>
+                  </div>
+                </div>
                 <InteractiveReportView
                   runId={historyDetail.runId}
                   outputDir={outputDir}
                   reportMarkdown={historyDetail.reportMarkdown}
                   figures={historyDetail.figures || []}
+                  lineage={historyDetail.lineage}
+                  tracePayload={historyDetail.tracePayload}
+                  artifacts={{
+                    sourceData: historyDetail.sourceData,
+                    cleanedData: historyDetail.cleanedData,
+                    report: historyDetail.report,
+                    figures: historyDetail.figures || [],
+                  }}
                   available={historyDetail.interactiveReportAvailable}
                 />
               </div>

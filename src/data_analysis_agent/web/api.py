@@ -24,6 +24,7 @@ from pydantic import BaseModel, SecretStr
 from ..agent_runner import run_analysis
 from ..experience_library import CompetitionExperienceError, CompetitionExperienceLibrary, ExperienceLibraryManager
 from ..history_qa import answer_history_question
+from ..interactive_report import ensure_interactive_report_for_run
 from ..memory import derive_memory_scope_key
 from ..modeling_workspace import ModelingWorkspace, ModelingWorkspaceError
 from .history import RunHistoryEntry, find_run_history, scan_run_history
@@ -34,6 +35,7 @@ from .model_settings import (
     test_model_connection,
     validate_model_settings,
 )
+from .report_export import export_markdown_report_pdf
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -479,6 +481,20 @@ def _hydrate_interactive_report_payload(run_dir: Path) -> dict[str, object]:
         source_payload = _file_payload(dataset.get("sourcePath"), label=Path(str(dataset.get("sourcePath", "data"))).name)
         if source_payload:
             dataset["sourceFile"] = source_payload
+        locator = dataset.get("locator", {})
+        if isinstance(locator, dict):
+            raw_payload = _file_payload(
+                locator.get("sourcePath"),
+                label=Path(str(locator.get("sourcePath", "source data"))).name,
+            )
+            cleaned_payload = _file_payload(
+                locator.get("cleanedPath"),
+                label=Path(str(locator.get("cleanedPath", "cleaned data"))).name,
+            )
+            if raw_payload:
+                locator["sourceFile"] = raw_payload
+            if cleaned_payload:
+                locator["cleanedFile"] = cleaned_payload
 
     return {
         "available": True,
@@ -523,6 +539,10 @@ def _serialize_history_entry(entry: RunHistoryEntry) -> dict[str, object]:
 
 def _serialize_history_detail(entry: RunHistoryEntry) -> dict[str, object]:
     trace_payload = _read_trace_payload(entry.trace_path)
+    run_metadata = trace_payload.get("run_metadata", {})
+    if not isinstance(run_metadata, dict):
+        run_metadata = {}
+    source_data_path = str(run_metadata.get("data_path", "")).strip()
     figures = [
         payload
         for payload in (_file_payload(path, label=path.name) for path in entry.figure_paths)
@@ -537,6 +557,7 @@ def _serialize_history_detail(entry: RunHistoryEntry) -> dict[str, object]:
         or "## 历史报告\n\n当前运行没有可预览的报告。",
         "figures": figures,
         "tracePayload": trace_payload,
+        "sourceData": _file_payload(source_data_path, label=Path(source_data_path).name) if source_data_path else None,
         "lineage": _serialize_lineage(entry.run_dir),
         "diagnostics": {
             "stageContractStatus": entry.stage_contract_status,
@@ -559,6 +580,63 @@ def _serialize_history_detail(entry: RunHistoryEntry) -> dict[str, object]:
             )
             if item is not None
         ],
+    }
+
+
+def _history_data_path(entry: RunHistoryEntry, kind: str) -> Path | None:
+    if kind == "cleaned":
+        return entry.cleaned_data_path if entry.cleaned_data_path and entry.cleaned_data_path.is_file() else None
+    trace_payload = _read_trace_payload(entry.trace_path)
+    run_metadata = trace_payload.get("run_metadata", {})
+    if not isinstance(run_metadata, dict):
+        return None
+    value = str(run_metadata.get("data_path", "")).strip()
+    if not value:
+        return None
+    candidate = _resolve_project_path(value)
+    return candidate if candidate.is_file() else None
+
+
+def _tabular_data_preview(path: Path, *, limit: int) -> dict[str, object]:
+    import pandas as pd
+
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        frame = pd.read_csv(path, nrows=limit)
+        try:
+            with path.open("r", encoding="utf-8-sig", errors="ignore") as handle:
+                row_count = max(sum(1 for _ in handle) - 1, 0)
+        except OSError:
+            row_count = None
+        sheet_name = ""
+    elif suffix in {".xls", ".xlsx"}:
+        frame = pd.read_excel(path, sheet_name=0, nrows=limit)
+        row_count = None
+        sheet_name = "第一个工作表"
+        if suffix == ".xlsx":
+            try:
+                from openpyxl import load_workbook
+
+                workbook = load_workbook(path, read_only=True, data_only=True)
+                worksheet = workbook.active
+                row_count = max(int(worksheet.max_row or 1) - 1, 0)
+                sheet_name = worksheet.title
+                workbook.close()
+            except Exception:
+                pass
+    else:
+        raise ValueError(f"Unsupported tabular file: {path.suffix}")
+    rows = json.loads(frame.to_json(orient="records", force_ascii=False, date_format="iso"))
+    return {
+        "name": path.name,
+        "path": path.as_posix(),
+        "sheetName": sheet_name,
+        "columns": [str(column) for column in frame.columns],
+        "rows": rows,
+        "rowCount": row_count,
+        "displayedRowCount": len(rows),
+        "truncated": row_count is None or row_count > len(rows),
+        "download": _file_payload(path, label=path.name),
     }
 
 
@@ -836,7 +914,57 @@ def create_app(project_root: Path | None = None) -> FastAPI:
         output_dir: str = Query(DEFAULT_OUTPUT_DIR),
     ) -> dict[str, object]:
         entry = _find_history_entry(run_id, output_dir or DEFAULT_OUTPUT_DIR)
+        try:
+            await asyncio.to_thread(ensure_interactive_report_for_run, entry.run_dir)
+        except Exception:
+            # The normal history payload remains usable. The hydrated response below
+            # explicitly reports unavailable evidence instead of inventing a fallback.
+            pass
         return _hydrate_interactive_report_payload(entry.run_dir)
+
+    @app.get("/api/history/runs/{run_id}/data-preview")
+    async def history_run_data_preview(
+        run_id: str,
+        kind: Literal["source", "cleaned"] = Query("source"),
+        output_dir: str = Query(DEFAULT_OUTPUT_DIR),
+        limit: int = Query(20, ge=1, le=100),
+    ) -> dict[str, object]:
+        entry = _find_history_entry(run_id, output_dir or DEFAULT_OUTPUT_DIR)
+        data_path = _history_data_path(entry, kind)
+        if data_path is None:
+            raise HTTPException(status_code=404, detail=f"{kind} data file not found")
+        try:
+            return await asyncio.to_thread(_tabular_data_preview, data_path, limit=limit)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Data preview failed: {exc}") from exc
+
+    @app.get("/api/history/runs/{run_id}/report.pdf")
+    async def history_run_report_pdf(
+        run_id: str,
+        output_dir: str = Query(DEFAULT_OUTPUT_DIR),
+    ) -> FileResponse:
+        entry = _find_history_entry(run_id, output_dir or DEFAULT_OUTPUT_DIR)
+        if entry.report_path is None or not entry.report_path.is_file():
+            raise HTTPException(status_code=404, detail="Report Markdown file not found")
+        pdf_path = entry.run_dir / "final_report.pdf"
+        try:
+            if not pdf_path.exists() or pdf_path.stat().st_mtime < entry.report_path.stat().st_mtime:
+                await asyncio.to_thread(
+                    export_markdown_report_pdf,
+                    entry.report_path,
+                    pdf_path,
+                    project_root=root,
+                    run_id=entry.run_dir.name,
+                )
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"PDF export failed: {exc}") from exc
+        return FileResponse(
+            pdf_path,
+            filename=f"{entry.run_dir.name}_analysis_report.pdf",
+            media_type="application/pdf",
+        )
 
     @app.post("/api/history/question")
     async def history_question(payload: HistoryQuestionRequest) -> dict[str, object]:

@@ -1,36 +1,56 @@
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   BookOpenCheck,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
   ExternalLink,
   FileSearch,
   FlaskConical,
+  Lightbulb,
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
 import { ViewLoading } from "../components/WorkspacePrimitives";
 
-function MethodList({ title, items, icon: Icon = FlaskConical }) {
+function MethodItems({ items }) {
   if (!items?.length) return null;
   return (
-    <section className="case-detail-section">
-      <header><Icon size={17} /><h3>{title}</h3></header>
-      <div className="case-method-list">
-        {items.map((item, index) => (
-          <article key={`${item.name}-${index}`}>
-            <strong>{item.name}</strong>
-            <p>{item.purpose}</p>
-            {item.assumptions?.length > 0 && (
-              <details><summary>查看假设</summary><ul>{item.assumptions.map((value) => <li key={value}>{value}</li>)}</ul></details>
-            )}
-          </article>
-        ))}
-      </div>
-    </section>
+    <div className="case-method-list">
+      {items.map((item, index) => (
+        <article key={`${item.name}-${index}`}>
+          <strong>{item.name}</strong>
+          <p>{item.purpose}</p>
+          {item.assumptions?.length > 0 && (
+            <details><summary>查看假设</summary><ul>{item.assumptions.map((value) => <li key={value}>{value}</li>)}</ul></details>
+          )}
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function DetailDisclosure({ title, count, icon: Icon, children }) {
+  return (
+    <details className="case-detail-disclosure">
+      <summary>
+        <span><Icon size={16} />{title}</span>
+        <small>{count} 项</small>
+        <ChevronRight className="case-disclosure-chevron" size={16} />
+      </summary>
+      <div className="case-disclosure-content">{children}</div>
+    </details>
   );
 }
 
 function CaseDetail({ detail }) {
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const caseId = detail?.case?.id || "";
+
+  useEffect(() => setSummaryExpanded(false), [caseId]);
+
   if (!detail) {
     return <div className="case-detail-empty"><FileSearch size={28} /><strong>选择一张案例卡查看详情</strong></div>;
   }
@@ -41,7 +61,16 @@ function CaseDetail({ detail }) {
         <div>
           <span className="case-eyebrow">{item.competition} · {item.year} 年 · {item.problemNumber} 题</span>
           <h2>{item.year} 年 {item.problemNumber} 题 · {item.title}</h2>
-          <p>{item.problemSummary}</p>
+          <p className={summaryExpanded ? "case-summary-text expanded" : "case-summary-text"}>{item.problemSummary}</p>
+          <button
+            type="button"
+            className="case-summary-toggle"
+            aria-expanded={summaryExpanded}
+            onClick={() => setSummaryExpanded((current) => !current)}
+          >
+            {summaryExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            {summaryExpanded ? "收起题目简介" : "展开题目简介"}
+          </button>
         </div>
         <span className="approved-badge"><CheckCircle2 size={15} />已审核</span>
       </header>
@@ -50,32 +79,66 @@ function CaseDetail({ detail }) {
         {item.keywords?.map((keyword) => <span key={keyword}>{keyword}</span>)}
       </div>
 
-      <MethodList title="数据操作" items={detail.dataOperations} icon={FileSearch} />
-      <MethodList title="模型与方法" items={detail.models} />
-      <MethodList title="验证方法" items={detail.validationMethods} icon={ShieldCheck} />
-
-      <section className="case-detail-section">
-        <header><CheckCircle2 size={17} /><h3>关键结论</h3></header>
-        <ol className="case-finding-list">
-          {detail.keyFindings?.map((finding, index) => <li key={`${index}-${finding.statement}`}>{finding.statement}</li>)}
-        </ol>
-      </section>
-
-      <section className="case-detail-section limitations">
-        <header><AlertTriangle size={17} /><h3>局限与复用边界</h3></header>
-        <ul>{detail.limitations?.map((value) => <li key={value}>{value}</li>)}</ul>
-      </section>
-
-      <section className="case-detail-section">
-        <header><BookOpenCheck size={17} /><h3>来源</h3></header>
-        <div className="case-source-list">
-          {detail.sources?.map((source) => (
-            <a href={source.uri} target="_blank" rel="noreferrer" key={source.id}>
-              <span><strong>{source.title}</strong><small>{source.role} · {source.distribution}</small></span>
-              <ExternalLink size={15} />
-            </a>
-          ))}
+      <section className="case-focus-section">
+        <header>
+          <span className="case-focus-kicker">案例速览</span>
+          <h3>先抓住最值得借鉴的部分</h3>
+        </header>
+        <div className="case-focus-grid">
+          <div className="case-focus-card methods">
+            <div className="case-focus-title"><FlaskConical size={17} /><strong>核心方法</strong></div>
+            <ol>
+              {detail.models?.slice(0, 3).map((model) => (
+                <li key={model.name}><strong>{model.name}</strong><p>{model.purpose}</p></li>
+              ))}
+            </ol>
+          </div>
+          <div className="case-focus-card findings">
+            <div className="case-focus-title"><Lightbulb size={17} /><strong>主要结论</strong></div>
+            <ol>
+              {detail.keyFindings?.slice(0, 3).map((finding, index) => (
+                <li key={`${index}-${finding.statement}`}>{finding.statement}</li>
+              ))}
+            </ol>
+          </div>
         </div>
+        {detail.limitations?.[0] && (
+          <div className="case-reuse-alert">
+            <AlertTriangle size={17} />
+            <div><strong>复用提醒</strong><p>{detail.limitations[0]}</p></div>
+          </div>
+        )}
+      </section>
+
+      <section className="case-full-detail">
+        <header><span>完整案例资料</span><p>需要深入研究时再展开，默认不打断快速阅读。</p></header>
+        <DetailDisclosure title="数据处理" count={detail.dataOperations?.length || 0} icon={FileSearch}>
+          <MethodItems items={detail.dataOperations} />
+        </DetailDisclosure>
+        <DetailDisclosure title="模型与方法" count={detail.models?.length || 0} icon={FlaskConical}>
+          <MethodItems items={detail.models} />
+        </DetailDisclosure>
+        <DetailDisclosure title="验证方法" count={detail.validationMethods?.length || 0} icon={ShieldCheck}>
+          <MethodItems items={detail.validationMethods} />
+        </DetailDisclosure>
+        <DetailDisclosure title="全部结论" count={detail.keyFindings?.length || 0} icon={CheckCircle2}>
+          <ol className="case-finding-list">
+            {detail.keyFindings?.map((finding, index) => <li key={`${index}-${finding.statement}`}>{finding.statement}</li>)}
+          </ol>
+        </DetailDisclosure>
+        <DetailDisclosure title="局限与复用边界" count={detail.limitations?.length || 0} icon={AlertTriangle}>
+          <ul className="case-limitation-list">{detail.limitations?.map((value) => <li key={value}>{value}</li>)}</ul>
+        </DetailDisclosure>
+        <DetailDisclosure title="来源" count={detail.sources?.length || 0} icon={BookOpenCheck}>
+          <div className="case-source-list">
+            {detail.sources?.map((source) => (
+              <a href={source.uri} target="_blank" rel="noreferrer" key={source.id}>
+                <span><strong>{source.title}</strong><small>{source.role} · {source.distribution}</small></span>
+                <ExternalLink size={15} />
+              </a>
+            ))}
+          </div>
+        </DetailDisclosure>
       </section>
     </article>
   );

@@ -5,6 +5,7 @@ import {
   fetchExperienceCase,
   fetchExperienceCases,
   fetchHistoryRun,
+  fetchModelSettings,
   fetchWorkspace,
   generateModelingPlan,
   startAnalysis,
@@ -15,6 +16,7 @@ import { DEFAULT_FORM } from "./defaults";
 
 export function useWorkspaceController() {
   const [activeView, setActiveView] = useState("analysis");
+  const [workspaceMode, setWorkspaceMode] = useState("new");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       return window.localStorage.getItem("academic-agent-sidebar") === "collapsed";
@@ -26,6 +28,9 @@ export function useWorkspaceController() {
   const [workspace, setWorkspace] = useState(null);
   const [workspaceError, setWorkspaceError] = useState("");
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
+  const [modelSettingsStatus, setModelSettingsStatus] = useState(null);
+  const [modelSettingsError, setModelSettingsError] = useState("");
+  const [modelSettingsLoading, setModelSettingsLoading] = useState(true);
   const [form, setForm] = useState(DEFAULT_FORM);
   const [dataFile, setDataFile] = useState(null);
   const [knowledgeFiles, setKnowledgeFiles] = useState([]);
@@ -55,6 +60,7 @@ export function useWorkspaceController() {
   const workspaceRequestRef = useRef(0);
   const historyRequestRef = useRef(0);
   const caseRequestRef = useRef(0);
+  const modelSettingsRequestRef = useRef(0);
 
   useEffect(() => {
     try {
@@ -91,6 +97,30 @@ export function useWorkspaceController() {
     [form.outputDir],
   );
 
+  const refreshModelSettings = useCallback(async () => {
+    const requestId = ++modelSettingsRequestRef.current;
+    setModelSettingsLoading(true);
+    try {
+      const payload = await fetchModelSettings();
+      if (requestId !== modelSettingsRequestRef.current) return null;
+      setModelSettingsStatus(payload);
+      setModelSettingsError("");
+      return payload;
+    } catch (error) {
+      if (requestId !== modelSettingsRequestRef.current) return null;
+      setModelSettingsError(error instanceof Error ? error.message : "模型配置状态检查失败。");
+      return null;
+    } finally {
+      if (requestId === modelSettingsRequestRef.current) setModelSettingsLoading(false);
+    }
+  }, []);
+
+  const updateModelSettingsStatus = useCallback((payload) => {
+    setModelSettingsStatus(payload);
+    setModelSettingsError("");
+    setModelSettingsLoading(false);
+  }, []);
+
   const loadHistoryDetail = useCallback(
     async (runId) => {
       if (!runId) return;
@@ -119,15 +149,19 @@ export function useWorkspaceController() {
   }, [refreshWorkspace]);
 
   useEffect(() => {
+    refreshModelSettings();
+  }, [refreshModelSettings]);
+
+  useEffect(() => {
     if (
-      ["history", "lineage"].includes(activeView)
+      workspaceMode === "history"
       && selectedRunId
       && historyDetail?.runId !== selectedRunId
       && historyLoadingRunId !== selectedRunId
     ) {
       loadHistoryDetail(selectedRunId);
     }
-  }, [activeView, historyDetail, historyLoadingRunId, loadHistoryDetail, selectedRunId]);
+  }, [workspaceMode, historyDetail, historyLoadingRunId, loadHistoryDetail, selectedRunId]);
 
   const selectExperienceCase = useCallback(async (caseId) => {
     if (!caseId) return;
@@ -176,10 +210,10 @@ export function useWorkspaceController() {
   }, [selectedCaseId]);
 
   useEffect(() => {
-    if (form.scenario === "modeling" && activeView === "knowledge" && !caseLibrary && !caseLibraryLoading) {
+    if (activeView === "knowledge" && !caseLibrary && !caseLibraryLoading) {
       refreshCaseLibrary();
     }
-  }, [activeView, caseLibrary, caseLibraryLoading, form.scenario, refreshCaseLibrary]);
+  }, [activeView, caseLibrary, caseLibraryLoading, refreshCaseLibrary]);
 
   const submitAnalysis = async (event) => {
     event.preventDefault();
@@ -197,7 +231,8 @@ export function useWorkspaceController() {
     knowledgeFiles.forEach((file) => formData.append("knowledge_uploads", file));
 
     setIsRunning(true);
-    setActiveView("results");
+    setActiveView("analysis");
+    setWorkspaceMode("current");
     setLogs([]);
     setResult(null);
     setStatus({ state: "starting", message: "正在启动分析任务" });
@@ -289,6 +324,37 @@ export function useWorkspaceController() {
     setModelingError("");
   };
 
+  const startNewAnalysis = useCallback(() => {
+    setActiveView("analysis");
+    setWorkspaceMode("new");
+    setSelectedRunId("");
+    setHistoryDetail(null);
+    setQaQuestion("");
+    setQaResult(null);
+    setDataFile(null);
+    setKnowledgeFiles([]);
+    setProblemFile(null);
+    setModelingDataFiles([]);
+    setModelingAttachments([]);
+    setModelingPackage(null);
+    setModelingError("");
+    setForm((current) => ({ ...current, query: "", sessionLabel: "" }));
+  }, []);
+
+  const openHistoryRun = useCallback((runId) => {
+    if (!runId) return;
+    setActiveView("analysis");
+    setWorkspaceMode("history");
+    setSelectedRunId(runId);
+    setQaQuestion("");
+    setQaResult(null);
+  }, []);
+
+  const openCurrentResult = useCallback(() => {
+    setActiveView("analysis");
+    setWorkspaceMode(result || isRunning ? "current" : "new");
+  }, [isRunning, result]);
+
   const handleAskQuestion = async () => {
     if (!qaQuestion.trim()) return;
     setQaLoading(true);
@@ -314,8 +380,19 @@ export function useWorkspaceController() {
   };
 
   return {
-    navigation: { activeView, setActiveView, sidebarCollapsed, setSidebarCollapsed, mobileSidebarOpen, setMobileSidebarOpen },
+    navigation: {
+      activeView, setActiveView, workspaceMode, setWorkspaceMode,
+      startNewAnalysis, openHistoryRun, openCurrentResult,
+      sidebarCollapsed, setSidebarCollapsed, mobileSidebarOpen, setMobileSidebarOpen,
+    },
     workspace: { data: workspace, error: workspaceError, loading: workspaceLoading, refresh: refreshWorkspace },
+    modelSettings: {
+      data: modelSettingsStatus,
+      error: modelSettingsError,
+      loading: modelSettingsLoading,
+      refresh: refreshModelSettings,
+      update: updateModelSettingsStatus,
+    },
     analysis: {
       form, setForm, dataFile, setDataFile, knowledgeFiles, setKnowledgeFiles,
       problemFile, setProblemFile, modelingDataFiles, setModelingDataFiles,

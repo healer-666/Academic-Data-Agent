@@ -190,6 +190,7 @@ def save_agent_trace(
     symbolic_profile: str = "full",
     symbolic_rules: tuple[SymbolicRule, ...] = (),
     lineage_payload: dict[str, object] | None = None,
+    interactive_report_payload: dict[str, object] | None = None,
     search_requested: bool = False,
     search_configured: bool = False,
     search_sources: tuple[dict[str, str], ...] = (),
@@ -300,6 +301,7 @@ def save_agent_trace(
             "hard_verification_enabled": symbolic_profile == "full",
         },
         "lineage": dict(lineage_payload or {"status": "not_generated"}),
+        "interactive_report": dict(interactive_report_payload or {"status": "not_generated"}),
         "search_status": search_status,
         "search": {
             "requested": search_requested,

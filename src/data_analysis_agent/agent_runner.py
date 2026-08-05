@@ -7,7 +7,7 @@ import io
 import json
 import re
 import time
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional
@@ -30,6 +30,7 @@ from .events import EventHandler, EventRecorder, emit_event
 from .execution_audit import audit_stage_execution
 from .experience_library import ExperienceLibraryManager
 from .harness.summary import build_run_summary_payload
+from .interactive_report import InteractiveReportArtifact, build_interactive_report_artifacts
 from .knowledge_context import KnowledgeContextProvider
 from .lineage import LineageArtifact, write_lineage_artifacts
 from .llm import build_llm
@@ -964,6 +965,7 @@ def _save_agent_trace(
     report_contract_check: ReportContractCheckResult | None = None,
     symbolic_profile: str = "full",
     lineage_payload: dict[str, object] | None = None,
+    interactive_report_payload: dict[str, object] | None = None,
     search_requested: bool = False,
     search_configured: bool = False,
     search_sources: tuple[dict[str, str], ...] = (),
@@ -1019,6 +1021,7 @@ def _save_agent_trace(
         symbolic_profile=symbolic_profile,
         symbolic_rules=get_symbolic_rules(),
         lineage_payload=lineage_payload,
+        interactive_report_payload=interactive_report_payload,
         search_requested=search_requested,
         search_configured=search_configured,
         search_sources=search_sources,
@@ -1948,6 +1951,7 @@ def run_analysis(
             latency_mode=resolved_latency_mode,
             fast_path_enabled=fast_path_enabled,
             symbolic_profile=resolved_symbolic_profile,
+            user_query=query,
         )
         current_runner = ScientificReActRunner(
             name=agent_name,
@@ -2807,6 +2811,35 @@ def run_analysis(
     except Exception as exc:
         lineage_payload = {"status": "failed", "error": str(exc)}
 
+    interactive_report_artifact: InteractiveReportArtifact | None = None
+    interactive_report_payload: dict[str, object] = {"status": "not_generated"}
+    try:
+        interactive_report_artifact = build_interactive_report_artifacts(
+            run_context=run_context,
+            report_markdown=report_markdown,
+            telemetry=telemetry,
+            step_traces=step_traces_tuple,
+        )
+        interactive_report_payload = interactive_report_artifact.to_trace_dict()
+        _emit_event(
+            event_recorder.emit,
+            "interactive_report_generated",
+            **interactive_report_payload,
+        )
+    except Exception as exc:
+        interactive_report_payload = {"status": "failed", "error": str(exc)}
+        artifact_validation = replace(
+            artifact_validation,
+            workflow_complete=False,
+            missing_artifacts=tuple(dict.fromkeys((*artifact_validation.missing_artifacts, "interactive_report"))),
+            warnings=tuple(dict.fromkeys((*artifact_validation.warnings, f"Interactive report generation failed: {exc}"))),
+        )
+        _emit_event(
+            event_recorder.emit,
+            "interactive_report_failed",
+            error=str(exc),
+        )
+
     final_trace_persist_started_at = time.perf_counter()
     _save_agent_trace(
         trace_path=trace_path,
@@ -2845,6 +2878,7 @@ def run_analysis(
         report_contract_check=current_report_contract,
         symbolic_profile=resolved_symbolic_profile,
         lineage_payload=lineage_payload,
+        interactive_report_payload=interactive_report_payload,
         search_requested=search_requested,
         search_configured=search_configured,
         search_sources=search_sources,
@@ -2958,6 +2992,10 @@ def run_analysis(
         report_contract_issue_types=current_report_contract.issue_types,
         lineage_json_path=lineage_artifact.json_path if lineage_artifact else None,
         lineage_mermaid_path=lineage_artifact.mermaid_path if lineage_artifact else None,
+        interactive_report_manifest_path=interactive_report_artifact.manifest_path if interactive_report_artifact else None,
+        interactive_report_snapshot_path=interactive_report_artifact.snapshot_path if interactive_report_artifact else None,
+        interactive_report_source_map_path=interactive_report_artifact.source_map_path if interactive_report_artifact else None,
+        interactive_report_summary=dict(interactive_report_payload),
     )
     _save_run_summary_service(
         summary_path=run_dir / "run_summary.json",
